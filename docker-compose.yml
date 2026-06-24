@@ -13,6 +13,7 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
+      - DATABASE_URL=postgresql://nuvho_kb_user:NuvhoKB2026!@209.38.90.132:5432/nuvho_kb
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 30s

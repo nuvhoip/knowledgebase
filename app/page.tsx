@@ -3,10 +3,13 @@ import SearchHero from '@/components/SearchHero'
 import CategoryGrid from '@/components/CategoryGrid'
 import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
-import { getFeaturedArticles } from '@/lib/data'
+import { getFeaturedArticles, getCategories } from '@/lib/data'
 
-export default function HomePage() {
-  const featured = getFeaturedArticles(4)
+export default async function HomePage() {
+  const [featured, categories] = await Promise.all([
+    getFeaturedArticles(4),
+    getCategories(),
+  ])
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -29,7 +32,7 @@ export default function HomePage() {
         </section>
 
         {/* Category grid */}
-        <CategoryGrid />
+        <CategoryGrid categories={categories} />
       </main>
       <Footer />
     </div>

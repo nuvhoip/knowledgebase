@@ -1,11 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+interface SessionUser {
+  name: string
+  email: string
+  role: string
+}
 
 export default function Header() {
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [authLoaded, setAuthLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        setUser(data ?? null)
+        setAuthLoaded(true)
+      })
+      .catch(() => setAuthLoaded(true))
+  }, [])
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    setUser(null)
+    router.push('/')
+    router.refresh()
+  }
+
+  const firstName = user?.name?.split(' ')[0] ?? ''
 
   return (
     <header className="bg-blue-slate shadow-md">
@@ -23,22 +52,36 @@ export default function Header() {
             />
           </Link>
 
-          {/* Right nav */}
+          {/* Right nav — desktop */}
           <nav className="hidden sm:flex items-center gap-3">
-            <Link
-              href="https://nuvho.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/80 hover:text-white font-body text-sm transition-colors"
-            >
-              Nuvho.com
-            </Link>
-            <Link
-              href="https://app.nuvho.com/login"
-              className="btn-outline-white text-sm py-2 px-5"
-            >
-              Login
-            </Link>
+            {!authLoaded ? null : user ? (
+              <>
+                <span className="text-white/90 font-body text-sm">
+                  Hello, {firstName}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="btn-outline-white text-sm py-2 px-5"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/signup"
+                  className="text-white/80 hover:text-white font-body text-sm transition-colors"
+                >
+                  Sign Up
+                </Link>
+                <Link
+                  href="/login"
+                  className="btn-outline-white text-sm py-2 px-5"
+                >
+                  Login
+                </Link>
+              </>
+            )}
           </nav>
 
           {/* Mobile hamburger */}
@@ -60,12 +103,26 @@ export default function Header() {
       {/* Mobile nav */}
       {mobileOpen && (
         <div className="sm:hidden bg-blue-slate/95 border-t border-white/10 px-4 py-4 space-y-3">
-          <Link href="https://nuvho.com" className="block text-white/80 hover:text-white text-sm py-1">
-            Nuvho.com
-          </Link>
-          <Link href="https://app.nuvho.com/login" className="btn-outline-white text-sm inline-block">
-            Login
-          </Link>
+          {user ? (
+            <>
+              <span className="block text-white/90 text-sm py-1">Hello, {firstName}</span>
+              <button
+                onClick={handleLogout}
+                className="btn-outline-white text-sm inline-block"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/signup" className="block text-white/80 hover:text-white text-sm py-1">
+                Sign Up
+              </Link>
+              <Link href="/login" className="btn-outline-white text-sm inline-block">
+                Login
+              </Link>
+            </>
+          )}
         </div>
       )}
     </header>

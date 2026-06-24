@@ -1,24 +1,32 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
 import Link from 'next/link'
-import { categories } from '@/lib/data'
 import { Article } from '@/lib/types'
 
 function SearchResults() {
   const searchParams = useSearchParams()
   const query = searchParams.get('q') ?? ''
 
-  const results: Article[] = query
-    ? categories.flatMap(c => c.articles).filter(a =>
-        a.title.toLowerCase().includes(query.toLowerCase()) ||
-        a.description.toLowerCase().includes(query.toLowerCase())
-      )
-    : []
+  const [results, setResults] = useState<Article[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([])
+      return
+    }
+    setLoading(true)
+    fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      .then(r => r.json())
+      .then(data => setResults(data.articles ?? []))
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false))
+  }, [query])
 
   return (
     <main className="flex-1">
@@ -34,14 +42,16 @@ function SearchResults() {
           <h1 className="font-heading text-2xl font-bold text-iron-grey">
             {query ? `Results for "${query}"` : 'Search'}
           </h1>
-          {results.length > 0 && (
+          {!loading && results.length > 0 && (
             <p className="font-body text-gray-500 mt-1">{results.length} article{results.length !== 1 ? 's' : ''} found</p>
           )}
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {results.length > 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-steel-blue font-body">Searching…</div>
+        ) : results.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {results.map(a => (
               <ArticleCard key={`${a.categorySlug}-${a.slug}`} article={a} showCategory />

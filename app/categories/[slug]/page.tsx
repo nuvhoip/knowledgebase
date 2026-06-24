@@ -4,18 +4,19 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
-import { categories, getCategoryBySlug } from '@/lib/data'
+import { getAllCategorySlugs, getCategoryBySlug } from '@/lib/data'
 
 interface Props {
   params: { slug: string }
 }
 
 export async function generateStaticParams() {
-  return categories.map(c => ({ slug: c.slug }))
+  const slugs = await getAllCategorySlugs()
+  return slugs.map(slug => ({ slug }))
 }
 
 export async function generateMetadata({ params }: Props) {
-  const category = getCategoryBySlug(params.slug)
+  const category = await getCategoryBySlug(params.slug)
   if (!category) return {}
   return {
     title: `${category.title} — Nuvho Knowledge Base`,
@@ -23,8 +24,8 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default function CategoryPage({ params }: Props) {
-  const category = getCategoryBySlug(params.slug)
+export default async function CategoryPage({ params }: Props) {
+  const category = await getCategoryBySlug(params.slug)
   if (!category) notFound()
 
   return (
