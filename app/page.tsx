@@ -5,6 +5,8 @@ import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
 import { getFeaturedArticles, getCategories } from '@/lib/data'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const [featured, categories] = await Promise.all([
     getFeaturedArticles(4),
