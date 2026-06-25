@@ -7,7 +7,6 @@ export interface Article {
   updatedAt: string
   readTime: number // minutes
   featured?: boolean
-  status: 'pending' | 'published'
 }
 
 export interface Category {

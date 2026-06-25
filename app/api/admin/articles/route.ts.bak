@@ -11,7 +11,7 @@ function slugify(text: string): string {
     .replace(/-+/g, '-')
 }
 
-/** GET /api/admin/articles — list ALL articles (including pending) with category info */
+/** GET /api/admin/articles — list all articles with category info */
 export async function GET() {
   const session = await getSession()
   if (!session || !session.email.endsWith('@nuvho.com')) {
@@ -29,13 +29,10 @@ export async function GET() {
          a.read_time,
          a.featured,
          a.sort_order,
-         a.status,
          a.updated_at
        FROM nuvho_kb.articles a
        JOIN nuvho_kb.categories c ON c.slug = a.category_slug
-       ORDER BY
-         CASE WHEN a.status = 'pending' THEN 0 ELSE 1 END,
-         c.sort_order ASC, a.sort_order ASC, a.title ASC`
+       ORDER BY c.sort_order ASC, a.sort_order ASC, a.title ASC`
     )
     return NextResponse.json(result.rows)
   } catch (err) {
@@ -44,7 +41,7 @@ export async function GET() {
   }
 }
 
-/** POST /api/admin/articles — create a new article (always starts as 'pending') */
+/** POST /api/admin/articles — create a new article */
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !session.email.endsWith('@nuvho.com')) {
@@ -78,16 +75,31 @@ export async function POST(req: NextRequest) {
     )
     const order = maxRes.rows[0].next
 
-    // Insert with status = 'pending' — article_count is NOT incremented until published
-    await pool.query(
-      `INSERT INTO nuvho_kb.articles
-         (slug, title, description, category_slug, content, read_time, featured, sort_order, status, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW())`,
-      [slug, title.trim(), description.trim(), categorySlug.trim(), content || null,
-       Number(readTime) || 5, Boolean(featured), order]
-    )
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(
+        `INSERT INTO nuvho_kb.articles
+           (slug, title, description, category_slug, content, read_time, featured, sort_order, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [slug, title.trim(), description.trim(), categorySlug.trim(), content || null,
+         Number(readTime) || 5, Boolean(featured), order]
+      )
+      await client.query(
+        `UPDATE nuvho_kb.categories
+         SET article_count = (SELECT COUNT(*) FROM nuvho_kb.articles WHERE category_slug = $1)
+         WHERE slug = $1`,
+        [categorySlug.trim()]
+      )
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
 
-    return NextResponse.json({ success: true, slug, categorySlug: categorySlug.trim(), status: 'pending' })
+    return NextResponse.json({ success: true, slug, categorySlug: categorySlug.trim() })
   } catch (err: any) {
     if (err.code === '23505') {
       return NextResponse.json({ error: 'An article with that title already exists in this category.' }, { status: 409 })

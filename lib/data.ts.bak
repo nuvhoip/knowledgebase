@@ -20,7 +20,6 @@ interface ArticleRow {
   updated_at: string
   read_time: number
   featured: boolean
-  status: 'pending' | 'published'
 }
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
@@ -35,7 +34,6 @@ function mapArticle(row: ArticleRow): Article {
     updatedAt: row.updated_at,
     readTime: row.read_time,
     featured: row.featured,
-    status: row.status,
   }
 }
 
@@ -50,9 +48,9 @@ function mapCategory(row: CategoryRow, articles: Article[]): Category {
   }
 }
 
-// ─── Public API (published-only) ──────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-/** All categories with their PUBLISHED articles. */
+/** All categories with their articles. */
 export async function getCategories(): Promise<Category[]> {
   const catResult = await pool.query<CategoryRow>(
     `SELECT slug, title, description, icon, article_count
@@ -65,9 +63,9 @@ export async function getCategories(): Promise<Category[]> {
   const artResult = await pool.query<ArticleRow>(
     `SELECT slug, title, description, content, category_slug,
             to_char(updated_at, 'Mon DD, YYYY') AS updated_at,
-            read_time, featured, status
+            read_time, featured
      FROM nuvho_kb.articles
-     WHERE category_slug = ANY($1::text[]) AND status = 'published'
+     WHERE category_slug = ANY($1::text[])
      ORDER BY sort_order, title`,
     [slugs]
   )
@@ -79,7 +77,7 @@ export async function getCategories(): Promise<Category[]> {
   return catResult.rows.map(row => mapCategory(row, byCategory.get(row.slug) ?? []))
 }
 
-/** Single category with its PUBLISHED articles. Returns null if not found. */
+/** Single category with its articles. Returns null if not found. */
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
   const catResult = await pool.query<CategoryRow>(
     `SELECT slug, title, description, icon, article_count
@@ -91,9 +89,9 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   const artResult = await pool.query<ArticleRow>(
     `SELECT slug, title, description, content, category_slug,
             to_char(updated_at, 'Mon DD, YYYY') AS updated_at,
-            read_time, featured, status
+            read_time, featured
      FROM nuvho_kb.articles
-     WHERE category_slug = $1 AND status = 'published'
+     WHERE category_slug = $1
      ORDER BY sort_order, title`,
     [slug]
   )
@@ -101,7 +99,7 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   return mapCategory(catResult.rows[0], artResult.rows.map(mapArticle))
 }
 
-/** Single PUBLISHED article by category + article slug. Returns null if not found or pending. */
+/** Single article by category + article slug. Returns null if not found. */
 export async function getArticleBySlug(
   categorySlug: string,
   articleSlug: string
@@ -109,22 +107,22 @@ export async function getArticleBySlug(
   const result = await pool.query<ArticleRow>(
     `SELECT slug, title, description, content, category_slug,
             to_char(updated_at, 'Mon DD, YYYY') AS updated_at,
-            read_time, featured, status
+            read_time, featured
      FROM nuvho_kb.articles
-     WHERE category_slug = $1 AND slug = $2 AND status = 'published'`,
+     WHERE category_slug = $1 AND slug = $2`,
     [categorySlug, articleSlug]
   )
   return result.rows.length === 0 ? null : mapArticle(result.rows[0])
 }
 
-/** Featured PUBLISHED articles, up to `limit`. */
+/** Featured articles, up to `limit`. */
 export async function getFeaturedArticles(limit = 4): Promise<Article[]> {
   const result = await pool.query<ArticleRow>(
     `SELECT slug, title, description, content, category_slug,
             to_char(updated_at, 'Mon DD, YYYY') AS updated_at,
-            read_time, featured, status
+            read_time, featured
      FROM nuvho_kb.articles
-     WHERE featured = true AND status = 'published'
+     WHERE featured = true
      ORDER BY sort_order, title
      LIMIT $1`,
     [limit]
@@ -132,15 +130,15 @@ export async function getFeaturedArticles(limit = 4): Promise<Article[]> {
   return result.rows.map(mapArticle)
 }
 
-/** Full-text search across PUBLISHED articles. */
+/** Full-text search across title and description. */
 export async function searchArticles(query: string): Promise<Article[]> {
   if (!query.trim()) return []
   const result = await pool.query<ArticleRow>(
     `SELECT slug, title, description, content, category_slug,
             to_char(updated_at, 'Mon DD, YYYY') AS updated_at,
-            read_time, featured, status
+            read_time, featured
      FROM nuvho_kb.articles
-     WHERE (title ILIKE $1 OR description ILIKE $1) AND status = 'published'
+     WHERE title ILIKE $1 OR description ILIKE $1
      ORDER BY
        CASE WHEN title ILIKE $1 THEN 0 ELSE 1 END,
        title
@@ -158,12 +156,10 @@ export async function getAllCategorySlugs(): Promise<string[]> {
   return result.rows.map(r => r.slug)
 }
 
-/** PUBLISHED article slug pairs for generateStaticParams. */
+/** Article slug pairs for generateStaticParams. */
 export async function getAllArticleSlugs(): Promise<{ categorySlug: string; slug: string }[]> {
   const result = await pool.query<{ category_slug: string; slug: string }>(
-    `SELECT category_slug, slug FROM nuvho_kb.articles
-     WHERE status = 'published'
-     ORDER BY category_slug, sort_order, title`
+    'SELECT category_slug, slug FROM nuvho_kb.articles ORDER BY category_slug, sort_order, title'
   )
   return result.rows.map(r => ({ categorySlug: r.category_slug, slug: r.slug }))
 }
