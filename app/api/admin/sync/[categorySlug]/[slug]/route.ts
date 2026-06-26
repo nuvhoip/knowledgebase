@@ -36,10 +36,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const body = await req.json().catch(() => ({}))
   const tier: Tier = body.tier
+  // Client tier requires hgid; pid, eid, entityCode are optional
+  const hgid: string | undefined = body.hgid?.trim() || undefined
+  const pid: string | undefined = body.pid?.trim() || undefined
+  const eid: string | undefined = body.eid?.trim() || undefined
+  const entityCode: string | undefined = body.entityCode?.trim() || undefined
 
   if (!VALID_TIERS.includes(tier)) {
     return NextResponse.json(
       { error: `Invalid tier. Must be one of: ${VALID_TIERS.join(', ')}.` },
+      { status: 400 }
+    )
+  }
+
+  if (tier === 'client' && !hgid) {
+    return NextResponse.json(
+      { error: 'hgid (Hotel Group ID) is required when syncing to the client tier.' },
       { status: 400 }
     )
   }
@@ -73,7 +85,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const oaiRes = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: rawContent }),
+      body: JSON.stringify({ model: 'text-embedding-3-large', dimensions: 1536, input: rawContent }),
     })
     if (!oaiRes.ok) {
       console.error('[sync] OpenAI error', await oaiRes.json().catch(() => ({})))
@@ -100,14 +112,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     vectorPool = getVectorPool(tier)
     await vectorPool.query(
-      `DELETE FROM nuvho_embeddings WHERE source_type = $1 AND source_id = $2`,
+      `DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2`,
       [tier, sourceId]
     )
-    await vectorPool.query(
-      `INSERT INTO nuvho_embeddings (content, embedding, source_type, source_id, metadata, created_at)
-       VALUES ($1, $2::vector, $3, $4, $5::jsonb, NOW())`,
-      [rawContent, embeddingStr, tier, sourceId, JSON.stringify(metadata)]
-    )
+
+    // The client tier DB has extra NOT NULL columns (hgid, pid, eid, entity_code)
+    if (tier === 'client') {
+      await vectorPool.query(
+        `INSERT INTO embeddings
+           (content, embedding, source_type, source_id, hgid, pid, eid, entity_code, doc_status, metadata, created_at)
+         VALUES ($1, $2::vector, $3, $4, $5, $6, $7, $8, 'published', $9::jsonb, NOW())`,
+        [rawContent, embeddingStr, tier, sourceId, hgid, pid ?? null, eid ?? null, entityCode ?? null, JSON.stringify(metadata)]
+      )
+    } else {
+      await vectorPool.query(
+        `INSERT INTO embeddings (content, embedding, source_type, source_id, doc_status, metadata, created_at)
+         VALUES ($1, $2::vector, $3, $4, 'published', $5::jsonb, NOW())`,
+        [rawContent, embeddingStr, tier, sourceId, JSON.stringify(metadata)]
+      )
+    }
+
     // Record where this article was synced so the admin dashboard can show it
     await pool.query(
       `UPDATE nuvho_kb.articles SET vector_tier = $1, vector_synced_at = NOW()

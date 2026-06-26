@@ -101,18 +101,25 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 function SyncModal({ target, onClose }: { target: SyncTarget; onClose: (synced?: boolean) => void }) {
   const [tier, setTier] = useState<SyncTier>('domain')
+  const [hgid, setHgid] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSync() {
+    if (tier === 'client' && !hgid.trim()) {
+      setError('Hotel Group ID (hgid) is required for the Client tier.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
+      const body: Record<string, string> = { tier }
+      if (tier === 'client') body.hgid = hgid.trim()
       const res = await fetch(`/api/admin/sync/${target.categorySlug}/${target.slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Sync failed.'); return }
@@ -175,6 +182,22 @@ function SyncModal({ target, onClose }: { target: SyncTarget; onClose: (synced?:
                 </label>
               ))}
             </div>
+
+            {tier === 'client' && (
+              <div className="mb-4">
+                <label className="block font-heading font-semibold text-sm text-iron-grey mb-1">
+                  Hotel Group ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={hgid}
+                  onChange={e => setHgid(e.target.value)}
+                  placeholder="e.g. hg-001"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-tropical-teal/40"
+                />
+                <p className="font-body text-xs text-gray-400 mt-1">Required for client-tier embeddings — identifies which hotel group can access this content.</p>
+              </div>
+            )}
 
             {error && <p className="font-body text-sm text-red-500 mb-3">{error}</p>}
 

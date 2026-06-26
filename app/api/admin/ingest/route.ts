@@ -70,6 +70,11 @@ export async function POST(req: NextRequest) {
     sourceId,
     sourceTier,
     ingestToVector = false,
+    // Client tier extras — hgid is required when sourceTier is 'client'
+    hgid,
+    pid,
+    eid,
+    entityCode,
   } = body
 
   // ── Validate required fields ──────────────────────────────────────────────
@@ -84,6 +89,13 @@ export async function POST(req: NextRequest) {
   if (ingestToVector && tier && !VALID_TIERS.includes(tier)) {
     return NextResponse.json(
       { error: `sourceTier must be one of: ${VALID_TIERS.join(', ')}.` },
+      { status: 400 }
+    )
+  }
+
+  if (ingestToVector && tier === 'client' && !hgid?.trim()) {
+    return NextResponse.json(
+      { error: 'hgid (Hotel Group ID) is required when ingesting to the client tier.' },
       { status: 400 }
     )
   }
@@ -155,7 +167,7 @@ export async function POST(req: NextRequest) {
         const oaiRes = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'text-embedding-3-small', input: rawContent }),
+          body: JSON.stringify({ model: 'text-embedding-3-large', dimensions: 1536, input: rawContent }),
         })
         if (!oaiRes.ok) {
           vectorResult = { success: false, error: 'OpenAI embedding request failed.' }
@@ -177,14 +189,26 @@ export async function POST(req: NextRequest) {
           try {
             vectorPool = getVectorPool(tier)
             await vectorPool.query(
-              `DELETE FROM nuvho_embeddings WHERE source_type = $1 AND source_id = $2`,
+              `DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2`,
               [tier, vid]
             )
-            await vectorPool.query(
-              `INSERT INTO nuvho_embeddings (content, embedding, source_type, source_id, metadata, created_at)
-               VALUES ($1, $2::vector, $3, $4, $5::jsonb, NOW())`,
-              [rawContent, embeddingStr, tier, vid, JSON.stringify(metadata)]
-            )
+
+            // The client tier DB has extra NOT NULL columns (hgid, pid, eid, entity_code)
+            if (tier === 'client') {
+              await vectorPool.query(
+                `INSERT INTO embeddings
+                   (content, embedding, source_type, source_id, hgid, pid, eid, entity_code, doc_status, metadata, created_at)
+                 VALUES ($1, $2::vector, $3, $4, $5, $6, $7, $8, 'published', $9::jsonb, NOW())`,
+                [rawContent, embeddingStr, tier, vid, hgid?.trim(), pid?.trim() ?? null, eid?.trim() ?? null, entityCode?.trim() ?? null, JSON.stringify(metadata)]
+              )
+            } else {
+              await vectorPool.query(
+                `INSERT INTO embeddings (content, embedding, source_type, source_id, doc_status, metadata, created_at)
+                 VALUES ($1, $2::vector, $3, $4, 'published', $5::jsonb, NOW())`,
+                [rawContent, embeddingStr, tier, vid, JSON.stringify(metadata)]
+              )
+            }
+
             vectorResult = { success: true, sourceId: vid }
             // Record where this article was synced
             await pool.query(
