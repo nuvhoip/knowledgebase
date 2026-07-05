@@ -6,9 +6,7 @@ interface RouteParams {
   params: { slug: string }
 }
 
-const VALID_VISIBILITY = ['public', 'private'] as const
-
-/** PATCH /api/admin/categories/[slug] — update title, description, icon, visibility */
+/** PATCH /api/admin/categories/[slug] — update title, description, icon */
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const session = await getSession()
   if (!session || !session.email.endsWith('@nuvho.com')) {
@@ -17,22 +15,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await req.json()
-    const { title, description, icon, visibility } = body
+    const { title, description, icon } = body
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 })
     }
 
-    if (visibility != null && !VALID_VISIBILITY.includes(visibility)) {
-      return NextResponse.json({ error: `visibility must be one of: ${VALID_VISIBILITY.join(', ')}.` }, { status: 400 })
-    }
-
     const result = await pool.query(
       `UPDATE nuvho_kb.categories
-       SET title = $1, description = $2, icon = $3, visibility = COALESCE($4, visibility)
-       WHERE slug = $5
+       SET title = $1, description = $2, icon = $3
+       WHERE slug = $4
        RETURNING slug`,
-      [title.trim(), description.trim(), (icon || 'rocket.svg').trim(), visibility ?? null, params.slug]
+      [title.trim(), description.trim(), (icon || 'rocket.svg').trim(), params.slug]
     )
 
     if (result.rowCount === 0) {

@@ -1,11 +1,10 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
-import { getCategoryBySlug, canView } from '@/lib/data'
-import { getSession } from '@/lib/auth'
+import { getCategoryBySlug } from '@/lib/data'
 
 // Force dynamic rendering — prevents Next.js from calling the DB during `next build`
 // (DigitalOcean build containers have no DB access). New categories appear immediately
@@ -26,26 +25,8 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function CategoryPage({ params }: Props) {
-  const [category, session] = await Promise.all([
-    getCategoryBySlug(params.slug),
-    getSession(),
-  ])
+  const category = await getCategoryBySlug(params.slug)
   if (!category) notFound()
-
-  const hasSession = !!session
-  if (!canView(category.visibility, hasSession)) {
-    redirect(`/login?next=${encodeURIComponent(`/categories/${params.slug}`)}`)
-  }
-
-  // Group visible articles by sub-category. Sub-categories (or individual articles)
-  // that resolve to Private are hidden from anonymous visitors even though the
-  // category itself is visible.
-  const visibleSubcategories = category.subcategories
-    .map(sub => ({
-      ...sub,
-      articles: sub.articles.filter(a => canView(a.effectiveVisibility, hasSession)),
-    }))
-    .filter(sub => canView(sub.visibility ?? category.visibility, hasSession) && sub.articles.length > 0)
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -88,24 +69,13 @@ export default async function CategoryPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Articles list — grouped by sub-category */}
+        {/* Articles list */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          {visibleSubcategories.length === 0 ? (
-            <p className="font-body text-sm text-gray-400 text-center py-10">No articles available yet.</p>
-          ) : (
-            <div className="space-y-10">
-              {visibleSubcategories.map(sub => (
-                <div key={sub.slug}>
-                  <h2 className="font-heading text-base font-semibold text-iron-grey mb-4">{sub.title}</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {sub.articles.map(article => (
-                      <ArticleCard key={article.slug} article={article} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {category.articles.map(article => (
+              <ArticleCard key={article.slug} article={article} />
+            ))}
+          </div>
 
           {/* Back link */}
           <div className="mt-10">

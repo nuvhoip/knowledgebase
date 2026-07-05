@@ -45,13 +45,6 @@
            transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
   }
 
-  /* Same look as .nuvho-card but without the hover lift/shadow animation —
-     for static containers like table wrappers where a "card" hover effect
-     on mouse-over is unwanted (e.g. the admin Articles table). */
-  .nuvho-table-card {
-    @apply bg-white rounded-nuvho border border-tropical-teal/20 shadow-nuvho;
-  }
-
   /* Search bar */
   .search-input {
     @apply w-full px-5 py-3.5 text-iron-grey font-body rounded-full border border-platinum

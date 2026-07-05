@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchArticles, canView } from '@/lib/data'
-import { getSession } from '@/lib/auth'
+import { searchArticles } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +7,8 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q') ?? ''
 
   try {
-    const [articles, session] = await Promise.all([searchArticles(q), getSession()])
-    const hasSession = !!session
-    const visible = articles.filter(a => canView(a.effectiveVisibility, hasSession))
-    return NextResponse.json({ articles: visible })
+    const articles = await searchArticles(q)
+    return NextResponse.json({ articles })
   } catch (err) {
     console.error('[/api/search] Error:', err)
     return NextResponse.json({ articles: [], error: 'Search failed' }, { status: 500 })

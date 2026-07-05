@@ -88,22 +88,13 @@ async function seed() {
          articles.filter(a => a.categorySlug === cat.slug).length,
          cat.sortOrder]
       )
-
-      // Every category needs at least one sub-category — articles.subcategory_slug is
-      // NOT NULL (migration 004). Mirrors the "General" default created by that migration.
-      await client.query(
-        `INSERT INTO nuvho_kb.subcategories (slug, category_slug, title, description, sort_order)
-         VALUES ($1, $2, 'General', 'General articles in this category.', 0)
-         ON CONFLICT (slug) DO NOTHING`,
-        [`${cat.slug}-general`, cat.slug]
-      )
     }
 
     for (const art of articles) {
       await client.query(
         `INSERT INTO nuvho_kb.articles
-           (slug, title, description, category_slug, subcategory_slug, updated_at, read_time, featured, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, $9)
+           (slug, title, description, category_slug, updated_at, read_time, featured, sort_order)
+         VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8)
          ON CONFLICT (category_slug, slug) DO UPDATE SET
            title       = EXCLUDED.title,
            description = EXCLUDED.description,
@@ -111,22 +102,16 @@ async function seed() {
            read_time   = EXCLUDED.read_time,
            featured    = EXCLUDED.featured,
            sort_order  = EXCLUDED.sort_order`,
-        [art.slug, art.title, art.description, art.categorySlug, `${art.categorySlug}-general`,
+        [art.slug, art.title, art.description, art.categorySlug,
          art.updatedAt, art.readTime, art.featured ?? false, art.sortOrder]
       )
     }
 
-    // Refresh article_count from actual rows (categories and sub-categories)
+    // Refresh article_count from actual rows
     await client.query(`
       UPDATE nuvho_kb.categories c
       SET article_count = (
         SELECT COUNT(*) FROM nuvho_kb.articles a WHERE a.category_slug = c.slug
-      )
-    `)
-    await client.query(`
-      UPDATE nuvho_kb.subcategories s
-      SET article_count = (
-        SELECT COUNT(*) FROM nuvho_kb.articles a WHERE a.subcategory_slug = s.slug
       )
     `)
 

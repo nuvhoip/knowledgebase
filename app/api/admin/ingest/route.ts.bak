@@ -17,8 +17,6 @@ import { getSession } from '@/lib/auth'
  *   title        string  required
  *   description  string  required
  *   categorySlug string  required
- *   subcategorySlug string optional (defaults to the category's "General" sub-category)
- *   visibility   string  optional  ('public'|'private' — omit to inherit from category/sub-category)
  *   content      string  optional  (HTML or markdown)
  *   readTime     number  optional  (minutes, default 5)
  *   sourceId     string  optional  (vector source_id for cross-reference)
@@ -67,8 +65,6 @@ export async function POST(req: NextRequest) {
     title,
     description,
     categorySlug,
-    subcategorySlug,
-    visibility,
     content,
     readTime,
     sourceId,
@@ -80,14 +76,6 @@ export async function POST(req: NextRequest) {
     eid,
     entityCode,
   } = body
-
-  const VALID_VISIBILITY = ['public', 'private'] as const
-  if (visibility != null && !VALID_VISIBILITY.includes(visibility)) {
-    return NextResponse.json(
-      { error: `visibility must be one of: ${VALID_VISIBILITY.join(', ')}, or omitted to inherit.` },
-      { status: 400 }
-    )
-  }
 
   // ── Validate required fields ──────────────────────────────────────────────
   if (!title?.trim() || !description?.trim() || !categorySlug?.trim()) {
@@ -121,32 +109,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Category not found.' }, { status: 404 })
   }
 
-  // ── Resolve sub-category — every article requires one. If the caller (e.g. an
-  // automated Vector MCP ingest) doesn't know about sub-categories yet, fall back
-  // to the category's default "General" sub-category created by migration 004. ──
-  let resolvedSubcategorySlug = subcategorySlug?.trim()
-  if (resolvedSubcategorySlug) {
-    const subCheck = await pool.query(
-      'SELECT slug FROM nuvho_kb.subcategories WHERE slug = $1 AND category_slug = $2',
-      [resolvedSubcategorySlug, categorySlug.trim()]
-    )
-    if (subCheck.rowCount === 0) {
-      return NextResponse.json({ error: 'Sub-category not found in that category.' }, { status: 404 })
-    }
-  } else {
-    const defaultSub = await pool.query(
-      `SELECT slug FROM nuvho_kb.subcategories WHERE category_slug = $1 ORDER BY sort_order, title LIMIT 1`,
-      [categorySlug.trim()]
-    )
-    if (defaultSub.rowCount === 0) {
-      return NextResponse.json(
-        { error: 'This category has no sub-categories yet. Create one first or pass subcategorySlug explicitly.' },
-        { status: 400 }
-      )
-    }
-    resolvedSubcategorySlug = defaultSub.rows[0].slug
-  }
-
   const slug = slugify(title.trim())
   if (!slug) {
     return NextResponse.json(
@@ -165,18 +127,16 @@ export async function POST(req: NextRequest) {
   try {
     await pool.query(
       `INSERT INTO nuvho_kb.articles
-         (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, 'pending', $9, NOW())`,
+         (slug, title, description, category_slug, content, read_time, featured, sort_order, status, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, false, $7, 'pending', NOW())`,
       [
         slug,
         title.trim(),
         description.trim(),
         categorySlug.trim(),
-        resolvedSubcategorySlug,
         content || null,
         Number(readTime) || 5,
         order,
-        visibility ?? null,
       ]
     )
   } catch (err: any) {

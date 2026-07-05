@@ -11,8 +11,6 @@ function slugify(text: string): string {
     .replace(/-+/g, '-')
 }
 
-const VALID_VISIBILITY = ['public', 'private'] as const
-
 /** GET /api/admin/categories — list all categories with article counts */
 export async function GET() {
   const session = await getSession()
@@ -22,7 +20,7 @@ export async function GET() {
 
   try {
     const result = await pool.query(
-      `SELECT slug, title, description, icon, article_count, sort_order, visibility
+      `SELECT slug, title, description, icon, article_count, sort_order
        FROM nuvho_kb.categories
        ORDER BY sort_order ASC, title ASC`
     )
@@ -42,14 +40,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { title, description, icon, sortOrder, visibility } = body
+    const { title, description, icon, sortOrder } = body
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 })
-    }
-
-    if (visibility != null && !VALID_VISIBILITY.includes(visibility)) {
-      return NextResponse.json({ error: `visibility must be one of: ${VALID_VISIBILITY.join(', ')}.` }, { status: 400 })
     }
 
     const slug = slugify(title.trim())
@@ -64,9 +58,9 @@ export async function POST(req: NextRequest) {
     }
 
     await pool.query(
-      `INSERT INTO nuvho_kb.categories (slug, title, description, icon, article_count, sort_order, visibility)
-       VALUES ($1, $2, $3, $4, 0, $5, $6)`,
-      [slug, title.trim(), description.trim(), (icon || 'rocket.svg').trim(), order, visibility || 'public']
+      `INSERT INTO nuvho_kb.categories (slug, title, description, icon, article_count, sort_order)
+       VALUES ($1, $2, $3, $4, 0, $5)`,
+      [slug, title.trim(), description.trim(), (icon || 'rocket.svg').trim(), order]
     )
 
     return NextResponse.json({ success: true, slug })

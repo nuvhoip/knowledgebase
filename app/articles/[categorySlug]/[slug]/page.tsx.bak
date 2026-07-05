@@ -1,8 +1,8 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { getCategoryBySlug, getArticleBySlug, canView } from '@/lib/data'
+import { getCategoryBySlug, getArticleBySlug } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 
 // Force dynamic rendering — prevents Next.js from calling the DB during `next build`
@@ -31,10 +31,6 @@ export default async function ArticlePage({ params }: Props) {
   ])
   const canEdit = !!session?.email.endsWith('@nuvho.com')
   if (!article || !category) notFound()
-
-  if (!canView(article.effectiveVisibility, !!session)) {
-    redirect(`/login?next=${encodeURIComponent(`/articles/${params.categorySlug}/${params.slug}`)}`)
-  }
 
   return (
     <div className="flex flex-col min-h-screen">

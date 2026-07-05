@@ -31,9 +31,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     try {
       await client.query('BEGIN')
 
-      // Get current status first
+      // Get current status + sub-category first
       const current = await client.query(
-        `SELECT status FROM nuvho_kb.articles
+        `SELECT status, subcategory_slug FROM nuvho_kb.articles
          WHERE category_slug = $1 AND slug = $2`,
         [params.categorySlug, params.slug]
       )
@@ -43,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
 
       const prevStatus = current.rows[0].status
+      const subcategorySlug = current.rows[0].subcategory_slug
       if (prevStatus === newStatus) {
         await client.query('ROLLBACK')
         return NextResponse.json({ success: true, status: newStatus, changed: false })
@@ -56,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         [newStatus, params.categorySlug, params.slug]
       )
 
-      // Recalculate article_count (only published articles)
+      // Recalculate article_count (only published articles) on both the category and sub-category
       await client.query(
         `UPDATE nuvho_kb.categories
          SET article_count = (
@@ -65,6 +66,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
          )
          WHERE slug = $1`,
         [params.categorySlug]
+      )
+      await client.query(
+        `UPDATE nuvho_kb.subcategories
+         SET article_count = (
+           SELECT COUNT(*) FROM nuvho_kb.articles
+           WHERE subcategory_slug = $1 AND status = 'published'
+         )
+         WHERE slug = $1`,
+        [subcategorySlug]
       )
 
       await client.query('COMMIT')
@@ -96,7 +106,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       const result = await client.query(
         `DELETE FROM nuvho_kb.articles
          WHERE category_slug = $1 AND slug = $2
-         RETURNING slug, status`,
+         RETURNING slug, status, subcategory_slug`,
         [params.categorySlug, params.slug]
       )
       if (result.rowCount === 0) {
@@ -104,7 +114,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: 'Article not found.' }, { status: 404 })
       }
 
-      // Only recalculate count if a published article was deleted
+      // Recalculate published-article counts on both the category and sub-category
       await client.query(
         `UPDATE nuvho_kb.categories
          SET article_count = (
@@ -113,6 +123,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
          )
          WHERE slug = $1`,
         [params.categorySlug]
+      )
+      await client.query(
+        `UPDATE nuvho_kb.subcategories
+         SET article_count = (
+           SELECT COUNT(*) FROM nuvho_kb.articles
+           WHERE subcategory_slug = $1 AND status = 'published'
+         )
+         WHERE slug = $1`,
+        [result.rows[0].subcategory_slug]
       )
 
       await client.query('COMMIT')
