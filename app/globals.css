@@ -73,3 +73,261 @@
 ::-webkit-scrollbar-track { background: #F7F8F9; }
 ::-webkit-scrollbar-thumb { background: #80B9BF; border-radius: 3px; }
 
+
+/* ============================================================================
+   AUTH PAGES (/login, /signup) — nuvho-web-design v1.0.0 §11 Login
+   ----------------------------------------------------------------------------
+   Scoped deliberately: every .nv-auth* class below is used ONLY by the Login
+   and Signup pages. The shared .btn-primary / .search-input / .nuvho-card
+   classes above remain off-spec and are UNTOUCHED by design, so no other page
+   moves. See the handover fix list.
+
+   Tokens: the --nv-* subset needed by these two pages, copied verbatim from
+   nuvho-brand v3.0.1 tokens/colors.css (§12 requires --nv-* rather than raw
+   hex). Only the values these pages use are defined here; this is a subset,
+   not a fork of the token sheet.
+   ========================================================================== */
+
+:root {
+  /* palette */
+  --nv-blue-slate: #28687F;
+  --nv-blue-500:   #3E7F96;   /* primary button hover */
+  /* surfaces */
+  --nv-white:                 #FFFFFF;
+  --nv-surface-page:          #F5F8F9;
+  --nv-surface-card:          #FFFFFF;
+  --nv-surface-disabled:      #E9EAEC;
+  --nv-surface-disabled-fill: rgba(195,202,206,.22);
+  /* borders */
+  --nv-border:      rgba(195,202,206,.55);  /* #C3CACE @55 — field default */
+  --nv-border-hair: rgba(40,104,127,.12);   /* card hairline */
+  /* text */
+  --nv-text-heading:  #28687F;
+  --nv-text-body:     #414B4C;
+  --nv-text-muted:    #5E6B6C;
+  --nv-text-disabled: #6E767B;
+  --nv-text-meta:     #8A9698;
+  /* status */
+  --nv-error: #982649;
+  /* named gradients — graphic-foundations 3a, angles as drawn in Figma */
+  --nv-grad-ground: linear-gradient(25deg, #28687F 14.5%, #28687F 55.7%, #3E7F96 85.5%);
+  --nv-grad-lift:   linear-gradient(35deg, rgba(40,104,127,0) 13.4%, rgba(128,185,191,.55) 86.6%);
+  --nv-grad-focal:  linear-gradient(35deg, rgba(128,185,191,.20) 13.4%, rgba(192,216,229,.95) 86.6%);
+}
+
+/* --- Shell ---------------------------------------------------------------- */
+.nv-auth {
+  display: flex;
+  min-height: 100vh;
+  background: var(--nv-surface-page);
+}
+
+/* --- Left 50%: brand panel (11, hidden < 900px) --------------------------- */
+.nv-auth__brand {
+  position: relative;
+  flex: 0 0 50%;
+  width: 50%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px 72px;
+  background: var(--nv-grad-ground);
+}
+
+/* Signature device — radius law 4: r = 0.24 of the short edge, focal 0.30,
+   stacked sheets offset by no less than one full radius, 1.5px white @.45
+   leading edge. Anchored upper-right. One focal per surface, never two. */
+.nv-auth__sheet { position: absolute; pointer-events: none; }
+.nv-auth__sheet--a {              /* stack sheet - 190 short edge -> r 46 */
+  width: 190px; height: 190px; border-radius: 46px;
+  top: -40px; right: 104px;
+  background: var(--nv-grad-lift);
+  opacity: .14;
+}
+.nv-auth__sheet--b {              /* stack sheet - offset 46 = exactly 1 r from A */
+  width: 190px; height: 190px; border-radius: 46px;
+  top: 6px; right: 58px;
+  background: var(--nv-grad-lift);
+  opacity: .20;
+}
+.nv-auth__sheet--focal {          /* the one bright form - 200 -> r 60 (0.30) */
+  width: 200px; height: 200px; border-radius: 60px;
+  top: 52px; right: -46px;
+  background: var(--nv-grad-focal);
+  border: 1.5px solid rgba(255,255,255,.45);   /* leading edge - radius law 4 */
+  opacity: .22;
+}
+
+.nv-auth__brand-inner { position: relative; z-index: 1; }
+.nv-auth__brand-logo  { width: 200px; height: auto; }      /* Logo / White 200 */
+
+.nv-auth__hero {
+  margin-top: 48px;
+  font-family: var(--font-comfortaa), sans-serif;
+  font-weight: 600;
+  font-size: 42px;
+  line-height: 1.15;
+  color: var(--nv-white);
+}
+
+.nv-auth__sub {
+  margin-top: 20px;
+  max-width: 420px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255,255,255,.75);   /* 11 states 75% for the supporting line */
+}
+
+.nv-auth__brand-footer {
+  position: absolute;
+  left: 72px;
+  bottom: 40px;
+  z-index: 1;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 12px;
+  color: rgba(255,255,255,.45);   /* 11 footer: 12 white @45% */
+}
+
+/* --- Right 50%: form panel ------------------------------------------------ */
+.nv-auth__panel {
+  flex: 1 1 50%;
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--nv-surface-page);
+}
+
+.nv-auth__mobile-logo     { display: none; margin-bottom: 28px; }
+.nv-auth__mobile-logo img { width: 44px; height: auto; }   /* Logo / Primary 44 */
+
+/* Card — 7: r14, 1px hairline, padding 40 36, NO SHADOW */
+.nv-auth__card {
+  width: 400px;
+  max-width: 100%;
+  background: var(--nv-surface-card);
+  border: 1px solid var(--nv-border-hair);
+  border-radius: 14px;
+  padding: 40px 36px;
+}
+
+.nv-auth__title {
+  font-family: var(--font-comfortaa), sans-serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--nv-text-heading);
+}
+
+.nv-auth__lede {
+  margin-top: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--nv-text-muted);
+}
+
+/* --- Fields — 5 Figma field ----------------------------------------------- */
+.nv-auth__form    { margin-top: 28px; }
+.nv-auth__group + .nv-auth__group { margin-top: 20px; }
+.nv-auth__actions { margin-top: 28px; }
+
+.nv-auth__label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--nv-text-body);
+}
+.nv-auth__req { color: var(--nv-error); }
+
+.nv-auth__field {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--nv-white);
+  border: 1px solid var(--nv-border);
+  border-radius: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 14px;
+  color: var(--nv-text-body);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.nv-auth__field::placeholder { color: var(--nv-text-meta); }
+.nv-auth__field:focus        { border: 1.5px solid var(--nv-blue-slate); }  /* no ring - 5 */
+.nv-auth__field:disabled     { background: var(--nv-surface-disabled); }
+
+.nv-auth__help {
+  margin-top: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 300;
+  font-size: 11px;
+  color: var(--nv-text-muted);
+}
+
+/* --- Error banner — 5 ----------------------------------------------------- */
+.nv-auth__error {
+  margin-top: 24px;
+  background: rgba(152,38,73,.07);
+  border: 1px solid rgba(152,38,73,.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 13px;
+  color: var(--nv-error);
+}
+
+/* --- Button — 4 Figma Button, no exceptions ------------------------------- */
+.nv-auth__btn {
+  width: 100%;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--nv-blue-slate);
+  color: var(--nv-white);
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color .15s ease;   /* recolour only - no lift, no shadow */
+}
+.nv-auth__btn:hover:not(:disabled) { background: var(--nv-blue-500); }
+.nv-auth__btn:disabled {
+  background: var(--nv-surface-disabled-fill);
+  color: var(--nv-text-disabled);
+  cursor: not-allowed;
+}
+
+/* --- Foot link ------------------------------------------------------------ */
+.nv-auth__foot {
+  margin-top: 24px;
+  text-align: center;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 13px;
+  color: var(--nv-text-muted);
+}
+.nv-auth__foot a       { color: var(--nv-blue-slate); font-weight: 600; }
+.nv-auth__foot a:hover { text-decoration: underline; }
+
+.nv-auth__panel-footer {
+  display: none;
+  margin-top: 32px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 11px;
+  color: var(--nv-text-muted);
+}
+
+/* --- Responsive — 14: 900px is the ONLY approved breakpoint --------------- */
+@media (max-width: 900px) {
+  .nv-auth__brand        { display: none; }
+  .nv-auth__panel        { flex-basis: 100%; width: 100%; padding: 40px 24px; }
+  .nv-auth__mobile-logo  { display: block; }
+  .nv-auth__panel-footer { display: block; }
+}
