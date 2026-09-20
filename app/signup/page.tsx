@@ -38,94 +38,114 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8F9] flex flex-col">
-      {/* Top bar */}
-      <header className="bg-blue-slate px-6 py-4">
-        <Link href="/" className="inline-block">
-          <Image src="/logo-white.svg" alt="Nuvho" width={120} height={32} className="h-8 w-auto" />
+    <div className="nv-auth">
+      {/* Brand panel — §11 split screen, hidden below 900px */}
+      <aside className="nv-auth__brand">
+        <div className="nv-auth__sheet nv-auth__sheet--a" />
+        <div className="nv-auth__sheet nv-auth__sheet--b" />
+        <div className="nv-auth__sheet nv-auth__sheet--focal" />
+
+        <div className="nv-auth__brand-inner">
+          <Link href="/" className="inline-block">
+            <Image
+              src="/logo-white.svg"
+              alt="Nuvho"
+              width={200}
+              height={54}
+              className="nv-auth__brand-logo"
+              priority
+            />
+          </Link>
+          <h2 className="nv-auth__hero">Start with the answer.</h2>
+          <p className="nv-auth__sub">
+            Create an account to save what matters, follow the guides that apply to
+            your property and keep your team on the same page.
+          </p>
+        </div>
+
+        <p className="nv-auth__brand-footer">&copy; Nuvho Systems Pty Ltd</p>
+      </aside>
+
+      {/* Form panel */}
+      <main className="nv-auth__panel">
+        <Link href="/" className="nv-auth__mobile-logo">
+          <Image src="/logo-primary.svg" alt="Nuvho" width={44} height={44} priority />
         </Link>
-      </header>
 
-      {/* Card */}
-      <main className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-nuvho shadow-nuvho border border-tropical-teal/20 p-8 sm:p-10">
-            <h1 className="font-heading text-2xl font-bold text-blue-slate mb-1">Create an account</h1>
-            <p className="text-sm text-iron-grey/60 mb-8">Join the Nuvho Knowledge Base</p>
+        <div className="nv-auth__card">
+          <h1 className="nv-auth__title">Create an account</h1>
+          <p className="nv-auth__lede">Join the Nuvho Knowledge Base.</p>
 
-            {error && (
-              <div className="mb-5 px-4 py-3 rounded-lg bg-cherry-rose/10 border border-cherry-rose/20 text-cherry-rose text-sm">
-                {error}
-              </div>
-            )}
+          {error && (
+            <div className="nv-auth__error" role="alert">
+              {error}
+            </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-iron-grey mb-1.5" htmlFor="name">
-                  Full name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="search-input"
-                  placeholder="Jane Smith"
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="nv-auth__form">
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="name">
+                Full name <span className="nv-auth__req">*</span>
+              </label>
+              <input
+                id="name"
+                type="text"
+                autoComplete="name"
+                required
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                className="nv-auth__field"
+                placeholder="Jane Smith"
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-iron-grey mb-1.5" htmlFor="email">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="search-input"
-                  placeholder="you@example.com"
-                />
-              </div>
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="email">
+                Email address <span className="nv-auth__req">*</span>
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                className="nv-auth__field"
+                placeholder="you@nuvho.com"
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-iron-grey mb-1.5" htmlFor="password">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  className="search-input"
-                  placeholder="Min. 8 characters"
-                />
-              </div>
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="password">
+                Password <span className="nv-auth__req">*</span>
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                className="nv-auth__field"
+                placeholder="Create a password"
+              />
+              <p className="nv-auth__help">Use at least 8 characters.</p>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full btn-primary py-3 text-base disabled:opacity-60 disabled:cursor-not-allowed"
-              >
+            <div className="nv-auth__actions">
+              <button type="submit" disabled={loading} className="nv-auth__btn">
                 {loading ? 'Creating account…' : 'Create account'}
               </button>
-            </form>
+            </div>
+          </form>
 
-            <p className="mt-6 text-center text-sm text-iron-grey/60">
-              Already have an account?{' '}
-              <Link href="/login" className="text-blue-slate font-semibold hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </div>
+          <p className="nv-auth__foot">
+            Already have an account? <Link href="/login">Sign in</Link>
+          </p>
         </div>
+
+        <p className="nv-auth__panel-footer">&copy; Nuvho Systems Pty Ltd</p>
       </main>
     </div>
   )
