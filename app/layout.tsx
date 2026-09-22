@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Comfortaa, Raleway } from 'next/font/google'
 import './globals.css'
 
+// next/font downloads both families at build time and serves them from this
+// deployment — no runtime request to Google Fonts (nuvho-web-design §6).
 const comfortaa = Comfortaa({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -19,7 +21,7 @@ const raleway = Raleway({
 
 export const metadata: Metadata = {
   title: 'Nuvho Knowledge Base',
-  description: 'Find answers to your Nuvho questions. Guides, tutorials, and documentation for Smart Hoteliers.',
+  description: 'Find answers to your Nuvho questions. Guides, tutorials and documentation for Smart Hoteliers.',
   openGraph: {
     title: 'Nuvho Knowledge Base',
     description: 'Find answers to your Nuvho questions.',
@@ -33,8 +35,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${comfortaa.variable} ${raleway.variable}`}>
-      <body className="min-h-screen bg-[#F7F8F9] font-body text-iron-grey">
+    <html lang="en-AU" className={`${comfortaa.variable} ${raleway.variable}`}>
+      <body className="nw-page min-h-screen font-body">
         {children}
       </body>
     </html>

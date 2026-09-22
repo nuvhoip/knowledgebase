@@ -1,5 +1,8 @@
 import type { Config } from 'tailwindcss'
 
+// Nuvho brand tokens mirrored as Tailwind colours (nv-*), per nuvho-web-design §6.
+// The design-system layer itself lives in app/globals.css (.nw-* marketing, .na-* admin,
+// .nv-* primitives) so Figma values are reproduced exactly rather than approximated.
 const config: Config = {
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -7,29 +10,40 @@ const config: Config = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    // One approved breakpoint only (references/responsive.md): ≥901px is desktop.
+    screens: {
+      desk: '901px',
+    },
     extend: {
       colors: {
-        // Nuvho Brand Palette
-        'blue-slate': '#28687F',
-        'steel-blue': '#6BA1BF',
-        'tropical-teal': '#80B9BF',
-        'iron-grey': '#414B4C',
-        'platinum': '#E9EAEC',
-        'cherry-rose': '#982649',
-        'deep-purple': '#672564',
-        'wisteria': '#CEA8E6',
-        'tuscan-sun': '#F3C65D',
-        'taupe': '#A47F7B',
+        'nv-blue-slate':    '#28687F',
+        'nv-blue-500':      '#3E7F96',
+        'nv-steel-blue':    '#6BA1BF',
+        'nv-tropical-teal': '#80B9BF',
+        'nv-iron-grey':     '#414B4C',
+        'nv-platinum':      '#E9EAEC',
+        'nv-page':          '#F5F8F9',
+        'nv-band':          '#F6F6F6',
+        'nv-tint':          '#EEF4F5',
+        'nv-slot':          '#E3EDF3',
+        'nv-heading':       '#28687F',
+        'nv-body':          '#414B4C',
+        'nv-muted':         '#5E6B6C',
+        'nv-meta':          '#8C9899',
+        'nv-success':       '#4A8F6E',
+        'nv-warning':       '#F3C65D',
+        'nv-error':         '#982649',
+        'nv-info':          '#6BA1BF',
       },
       fontFamily: {
-        'heading': ['var(--font-comfortaa)', 'sans-serif'],
-        'body': ['var(--font-raleway)', 'sans-serif'],
+        heading: ['var(--font-comfortaa)', 'system-ui', 'sans-serif'],
+        body:    ['var(--font-raleway)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        'nuvho': '14px',
-      },
-      boxShadow: {
-        'nuvho': '0 2px 16px 0 rgba(40, 104, 127, 0.10), 0 0 0 1px rgba(128, 185, 191, 0.12)',
+        'nv-xs': '6px',
+        'nv-md': '14px',
+        'nv-lg': '16px',
+        'nv-xl': '24px',
       },
     },
   },

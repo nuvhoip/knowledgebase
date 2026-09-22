@@ -1,13 +1,17 @@
-import Header from '@/components/Header'
-import SearchHero from '@/components/SearchHero'
-import CategoryGrid from '@/components/CategoryGrid'
+import SiteHeader from '@/components/SiteHeader'
+import HomeHero from '@/components/HomeHero'
+import FeaturedArticle from '@/components/FeaturedArticle'
+import ArticleTile from '@/components/ArticleTile'
+import TopicGrid from '@/components/TopicGrid'
+import ContactBand from '@/components/ContactBand'
 import Footer from '@/components/Footer'
-import ArticleCard from '@/components/ArticleCard'
 import { getFeaturedArticles, getCategories, canView } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// Home follows the Figma Blog/Resources anatomy: hero (with search) → featured band →
+// topic grid (service cards) → conversion band → footer 512.
 export default async function HomePage() {
   const [featured, categories, session] = await Promise.all([
     getFeaturedArticles(4),
@@ -17,35 +21,43 @@ export default async function HomePage() {
   const hasSession = !!session
 
   // Anonymous visitors never see Private categories or featured articles listed here —
-  // they can still reach a Private article's URL, but the article/category page itself
-  // will redirect them to /login (see those pages for the actual gate).
+  // the article/category pages themselves redirect them to /login.
   const visibleFeatured = featured.filter(a => canView(a.effectiveVisibility, hasSession))
   const visibleCategories = categories.filter(c => canView(c.visibility, hasSession))
+  const catMap = new Map(categories.map(c => [c.slug, { title: c.title, icon: c.icon }]))
+  const [lead, ...rest] = visibleFeatured
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
+      <SiteHeader />
       <main className="flex-1">
-        <SearchHero />
+        <HomeHero />
 
-        {/* Featured / Popular articles */}
-        {visibleFeatured.length > 0 && (
-          <section className="bg-[#F7F8F9] border-b border-platinum">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-              <h2 className="font-heading text-lg font-semibold text-iron-grey mb-5">
-                Popular articles
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {visibleFeatured.map(article => (
-                  <ArticleCard key={article.slug} article={article} showCategory />
-                ))}
-              </div>
+        {lead && (
+          <section className="nw-section nw-section--band" id="popular">
+            <div className="nw-wrap">
+              <FeaturedArticle article={lead} category={catMap.get(lead.categorySlug)} />
+              {rest.length > 0 && (
+                <div className="nw-tiles mt-12">
+                  {rest.map(a => (
+                    <ArticleTile key={`${a.categorySlug}/${a.slug}`} article={a} category={catMap.get(a.categorySlug)} />
+                  ))}
+                </div>
+              )}
             </div>
           </section>
         )}
 
-        {/* Category grid */}
-        <CategoryGrid categories={visibleCategories} />
+        <section className="nw-section" id="topics">
+          <div className="nw-wrap">
+            <h2 className="nw-h2">Browse by topic</h2>
+            <p className="nw-intro">Every guide lives under one of these topics. Pick the area you are working in.</p>
+            <div className="nw-rule" aria-hidden="true" />
+            <TopicGrid categories={visibleCategories} />
+          </div>
+        </section>
+
+        <ContactBand />
       </main>
       <Footer />
     </div>
