@@ -10,6 +10,7 @@
 export interface HeroImage {
   src: string
   alt: string
+  srcSet?: string
 }
 
 const HERO_RE = /^\s*<figure\b[^>]*\bdata-nv-hero\b[^>]*>([\s\S]*?)<\/figure>\s*/i

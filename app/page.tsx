@@ -10,8 +10,9 @@ import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// Home follows the Figma Blog/Resources anatomy: hero (with search) → featured band →
-// topic grid (service cards) → conversion band → footer 512.
+// Home follows the Figma Blog/Resources anatomy (793:2): photo hero (with search) →
+// featured band (#F6F6F6) → latest articles (white) → topic grid (service cards on
+// #F6F6F6) → Blue Slate conversion band → footer 512.
 export default async function HomePage() {
   const [featured, categories, session] = await Promise.all([
     getFeaturedArticles(4),
@@ -34,21 +35,28 @@ export default async function HomePage() {
         <HomeHero />
 
         {lead && (
-          <section className="nw-section nw-section--band" id="popular">
+          <section className="nw-section nw-section--band nw-section--feature" id="popular">
             <div className="nw-wrap">
               <FeaturedArticle article={lead} category={catMap.get(lead.categorySlug)} />
-              {rest.length > 0 && (
-                <div className="nw-tiles mt-12">
-                  {rest.map(a => (
-                    <ArticleTile key={`${a.categorySlug}/${a.slug}`} article={a} category={catMap.get(a.categorySlug)} />
-                  ))}
-                </div>
-              )}
             </div>
           </section>
         )}
 
-        <section className="nw-section" id="topics">
+        {rest.length > 0 && (
+          <section className="nw-section" id="latest">
+            <div className="nw-wrap">
+              <h2 className="nw-h2">Latest articles</h2>
+              <div className="nw-rule" aria-hidden="true" />
+              <div className="nw-tiles">
+                {rest.map(a => (
+                  <ArticleTile key={`${a.categorySlug}/${a.slug}`} article={a} category={catMap.get(a.categorySlug)} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="nw-section nw-section--band" id="topics">
           <div className="nw-wrap">
             <h2 className="nw-h2">Browse by topic</h2>
             <p className="nw-intro">Every guide lives under one of these topics. Pick the area you are working in.</p>

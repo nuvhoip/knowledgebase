@@ -212,12 +212,13 @@
 .nw-drawer__sub a { display: flex; align-items: center; gap: 12px; padding: 10px 0; font: 500 15px/1.4 var(--nv-font-body); color: var(--nv-text-muted); text-decoration: none; }
 .nw-drawer__cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 20px; }
 
-/* --- Hero (Figma 793:24 geometry; GROUND gradient instead of photo — decision 1) --- */
+/* --- Hero (Figma 793:24). Home uses the photo stack (see ADDENDUM); inner pages without an image fall back to GROUND. --- */
 .nw-hero { position: relative; overflow: hidden; color: var(--nv-white); background: var(--nv-grad-ground); min-height: 520px; display: flex; align-items: center; }
 .nw-hero--inner { min-height: 360px; }   /* not in Figma — proposal for KB inner pages (article, category, search) */
 .nw-hero__scrim { position: absolute; left: 0; top: 0; bottom: 0; width: 940px; max-width: 100%; background: var(--nv-scrim-copy); pointer-events: none; }
-.nw-hero__inner { position: relative; padding: 96px 0; width: 100%; }
-.nw-hero--inner .nw-hero__inner { padding: 56px 0 64px; }
+/* vertical padding only — the 24px side padding comes from .nw-wrap, which keeps copy on the 140 gutter */
+.nw-hero__inner { position: relative; padding-top: 96px; padding-bottom: 96px; width: 100%; }
+.nw-hero--inner .nw-hero__inner { padding-top: 56px; padding-bottom: 64px; }
 .nw-hero__crumb { margin-bottom: 28px; }
 .nw-hero__tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 .nw-hero__h1 { font: 600 52px/62px var(--nv-font-display); letter-spacing: -.52px; color: var(--nv-white); margin: 0; max-width: 700px; }
@@ -300,11 +301,14 @@
 .nw-feature { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 48px; align-items: center; }
 .nw-feature__slot { position: relative; height: 440px; border-radius: 24px; overflow: hidden; background: var(--nv-grad-blend); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: var(--nv-white); }
 .nw-feature__slot .nv-ic { position: relative; filter: brightness(0) invert(1); opacity: .92; }
-.nw-feature__slot span { position: relative; font: 500 20px/1.3 var(--nv-font-display); }
-.nw-feature__copy { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.nw-feature__title { font: 500 28px/38px var(--nv-font-display); color: var(--nv-text-heading); margin: 0; }
-.nw-feature__desc { font: 400 16px/27px var(--nv-font-body); color: var(--nv-text-muted); margin: 0; }
-.nw-feature__meta { font: 400 13px/18px var(--nv-font-body); color: var(--nv-text-meta); }
+.nw-feature__slot span:not(.nv-sheet) { position: relative;font: 500 20px/1.3 var(--nv-font-display); }
+.nw-section--feature { padding: 70px 0; }   /* 580 band: 70 + 440 image + 70 */
+/* copy rhythm from 793:2333–2343: eyebrow → 12 → tags → 22 → title → 18 → desc → 28 → meta → 24 → button */
+.nw-feature__copy { display: flex; flex-direction: column; align-items: flex-start; }
+.nw-feature__copy .nw-tile__tags { margin-top: 12px; }
+.nw-feature__title { font: 500 28px/38px var(--nv-font-display); color: var(--nv-text-heading); margin: 22px 0 0; }
+.nw-feature__desc { font: 400 16px/27px var(--nv-font-body); color: var(--nv-text-muted); margin: 18px 0 0; }
+.nw-feature__meta { font: 400 13px/18px var(--nv-font-body); color: var(--nv-text-meta); margin: 28px 0 24px; }
 
 /* --- Topic cards = Figma service cards (Home 05, 568×280 r24, Steel Blue hover) --- */
 .nw-services { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
@@ -356,13 +360,15 @@
 .nw-empty h2 { font: 500 22px/1.28 var(--nv-font-display); color: var(--nv-text-heading); margin: 0; }
 .nw-empty p { font: 400 15px/1.6 var(--nv-font-body); color: var(--nv-text-muted); margin: 10px 0 24px; }
 
-/* --- Conversion band (Figma "Get in touch (Blend · Teal forward)" 520) --- */
-.nw-band { position: relative; overflow: hidden; color: var(--nv-white); background: var(--nv-grad-blend); padding: 96px 0; }
-.nw-band__inner { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: center; }
-.nw-band h2 { font: 500 38px/48px var(--nv-font-display); color: var(--nv-white); margin: 0; max-width: 634px; }
-.nw-band p { font: 400 16px/27px var(--nv-font-body); color: var(--nv-text-on-dark-2); margin: 16px 0 0; max-width: 560px; }
-.nw-band__actions { display: flex; flex-direction: column; gap: 16px; }
-.nw-band__actions .nv-btn { width: 252px; }
+/* --- Conversion band (Figma "06 · Subscribe (Blue Slate · full bleed)" 794:95, 420) --- */
+.nw-band { position: relative; overflow: hidden; color: var(--nv-white); background: var(--nv-grad-ground); padding: 110px 0 112px; }
+.nw-band .nv-sheet--1 { bottom: auto; top: 220px; }   /* Sheet / 01 at y 220 */
+.nw-band .nv-sheet--2 { bottom: auto; top: 300px; }   /* Sheet / 03 at y 300 */
+.nw-band__inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.nw-band h2 { font: 500 38px/48px var(--nv-font-display); color: var(--nv-white); margin: 0; }
+.nw-band p { font: 400 20px/1.7 var(--nv-font-body); color: var(--nv-text-on-dark-4); margin: 22px 0 0; max-width: 900px; }
+.nw-band__actions { display: flex; justify-content: center; gap: 12px; margin-top: 24px; }
+.nw-band__btn { height: 56px; min-width: 180px; padding: 0 32px; }   /* onDark 56 — 794:106 */
 
 /* --- Footer 512 Iron Grey (Figma 656:2) --- */
 .nw-footer { background: var(--nv-iron-grey); color: var(--nv-white); padding: 64px 0 40px; }
@@ -522,8 +528,8 @@
   .nw-drawer { display: block; }
 
   .nw-hero { min-height: 0; }
-  .nw-hero__inner { padding: 64px 0; }
-  .nw-hero--inner .nw-hero__inner { padding: 40px 0 48px; }
+  .nw-hero__inner { padding-top: 64px; padding-bottom: 64px; }
+  .nw-hero--inner .nw-hero__inner { padding-top: 40px; padding-bottom: 48px; }
   .nw-hero__h1 { font-size: 40px; line-height: 1.1; letter-spacing: -.4px; }          /* proposal in responsive.md */
   .nw-hero--inner .nw-hero__h1 { font-size: 32px; }
   .nw-hero__copy { font-size: 16px; }
@@ -540,10 +546,12 @@
   .nw-service h3 { font-size: 24px; }
   .nw-feature { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .nw-feature__slot { height: 240px; }
+  .nw-section--feature { padding: 48px 0; }
   .nw-band { padding: 64px 0; }
-  .nw-band__inner { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .nw-band h2 { font-size: 30px; line-height: 1.2; }
-  .nw-band__actions .nv-btn { width: 100%; }
+  .nw-band p { font-size: 17px; }
+  .nw-band__actions { flex-direction: column; align-self: stretch; }
+  .nw-band__btn { width: 100%; }
 
   .nw-footer { padding: 48px 0 32px; }
   .nw-footer__top { grid-template-columns: minmax(0, 1fr); gap: 32px; }
@@ -798,6 +806,7 @@
 .nw-hero--photo { background: #5E6B6C; }
 .nw-hero__veil  { position: absolute; inset: 0; background: linear-gradient(24.75deg, #80B9BF 14.48%, rgba(170,210,214,.44) 55.64%, #80B9BF 85.45%); pointer-events: none; }
 .nw-hero__photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .4; pointer-events: none; }
+.nw-hero__art   { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }   /* Figma 793:30 Art / overlay (sheets + glow + grain) */
 .nw-hero--photo.nw-hero--inner { min-height: 440px; }   /* taller when carrying a photo — not in Figma (inner pages are 791 there) */
 
 /* Reader card — the centred article surface: web card r24, 1px #E9EAEC, padding 40,
