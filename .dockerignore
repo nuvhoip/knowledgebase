@@ -5,3 +5,8 @@ node_modules
 README.md
 docker-compose*.yml
 .env*.local
+.env
+.env.*
+!.env.example
+_build.log
+*.bak
