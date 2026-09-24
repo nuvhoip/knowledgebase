@@ -20,6 +20,8 @@ const raleway = Raleway({
 })
 
 export const metadata: Metadata = {
+  // Lets relative URLs (e.g. /uploads/… hero images) resolve in Open Graph tags
+  metadataBase: new URL('https://knowledge.nuvho.com'),
   title: 'Nuvho Knowledge Base',
   description: 'Find answers to your Nuvho questions. Guides, tutorials and documentation for Smart Hoteliers.',
   openGraph: {

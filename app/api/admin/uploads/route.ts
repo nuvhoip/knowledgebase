@@ -50,14 +50,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const saved = await saveUpload(buf, mime)
+    const saved = await saveUpload(buf, mime, session.email)
     return NextResponse.json({
       location: saved.url,
       url: saved.url,
       filename: saved.filename,
       size: buf.length,
       type: mime,
-      // 'spaces' in production; 'local' means the Spaces env vars are missing (see lib/uploads.ts)
+      // 'db' by default; 'local' only when UPLOAD_STORAGE=local (see lib/uploads.ts)
       backend: saved.backend,
     })
   } catch (err) {

@@ -1,22 +1,32 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { randomBytes } from 'crypto'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import pool from './db'
 
-// Upload storage adapter — two backends, chosen by environment (decision 2026-09-25):
+// Upload storage — decision 2026-09-25: editor images live in the existing nuvho_kb
+// Postgres database (table nuvho_kb.uploads, migration scripts/005_uploads.sql) and are
+// served by app/uploads/[...path]/route.ts at /uploads/<id>.<ext>.
 //
-//   spaces  DigitalOcean Spaces (S3 API + CDN). Used when SPACES_BUCKET, SPACES_KEY and
-//           SPACES_SECRET are all set. Production on App Platform must use this: its
-//           containers have no persistent disk, so anything written locally is lost on
-//           the next deploy. Objects are public-read at <prefix>/<yyyy>/<mm>/<random>.<ext>
-//           and referenced by their CDN URL.
-//   local   Disk under UPLOADS_DIR, served by app/uploads/[...path]/route.ts. Local dev
-//           default, and the right choice on a plain Docker host with a volume.
+// Why the database: knowledge.nuvho.com runs on DigitalOcean App Platform, whose
+// containers have no persistent disk, and a paid object store was ruled out. Cloudflare
+// fronts the site and caches image extensions, so each image is read from Postgres about
+// once per edge location; images also travel with the articles in every DB backup.
 //
-// Filenames are random per upload, so both backends can cache responses as immutable.
+// UPLOAD_STORAGE=local switches to disk under UPLOADS_DIR (for a plain Docker host with a
+// volume). Local URLs are /uploads/<yyyy>/<mm>/<id>.<ext>; the serving route handles both.
+
+export type StorageBackend = 'db' | 'local'
+
+export function storageBackend(): StorageBackend {
+  return process.env.UPLOAD_STORAGE === 'local' ? 'local' : 'db'
+}
 
 export const MAX_UPLOAD_MB = Math.max(1, Number(process.env.MAX_UPLOAD_MB) || 10)
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+export const UPLOADS_URL_PREFIX = '/uploads'
+
+/** Local backend: on-disk root. */
+export const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads'))
 
 /** Accepted types → file extension. Images only (decision 2026-09-24).
  *  To accept PDFs later add `'application/pdf': 'pdf'` here and a branch in sniffType(). */
@@ -27,7 +37,7 @@ export const ALLOWED_TYPES: Record<string, string> = {
   'image/gif':  'gif',
 }
 
-/** Extension → Content-Type for the local serving route. */
+/** Extension → Content-Type for the local serving path. */
 export const CONTENT_TYPES: Record<string, string> = {
   jpg:  'image/jpeg',
   jpeg: 'image/jpeg',
@@ -47,94 +57,77 @@ export function sniffType(buf: Buffer): string | null {
   return null
 }
 
-// ─── Backend selection ────────────────────────────────────────────────────────
+// ─── Identifiers ─────────────────────────────────────────────────────────────
 
-export type StorageBackend = 'spaces' | 'local'
-
-const SPACES = {
-  bucket: process.env.SPACES_BUCKET ?? '',
-  region: process.env.SPACES_REGION ?? 'syd1',
-  key:    process.env.SPACES_KEY ?? '',
-  secret: process.env.SPACES_SECRET ?? '',
-  /** CDN or custom-domain base, e.g. https://nuvho-kb.syd1.cdn.digitaloceanspaces.com */
-  cdnUrl: (process.env.SPACES_CDN_URL ?? '').replace(/\/+$/, ''),
-  prefix: (process.env.SPACES_PREFIX ?? 'uploads').replace(/^\/+|\/+$/g, ''),
+/** <base36 ms timestamp>-<12 hex> — sortable by upload time, unguessable enough for public URLs. */
+function newId(): string {
+  return `${Date.now().toString(36)}-${randomBytes(6).toString('hex')}`
 }
-
-export function storageBackend(): StorageBackend {
-  return SPACES.bucket && SPACES.key && SPACES.secret ? 'spaces' : 'local'
-}
-
-/** Local backend: on-disk root and the URL prefix the serving route answers on. */
-export const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads'))
-export const UPLOADS_URL_PREFIX = '/uploads'
-
-let s3: S3Client | null = null
-function s3Client(): S3Client {
-  if (!s3) {
-    s3 = new S3Client({
-      // Spaces ignores the region name but the SDK requires one; the endpoint carries the real region.
-      region: 'us-east-1',
-      endpoint: `https://${SPACES.region}.digitaloceanspaces.com`,
-      forcePathStyle: false,
-      credentials: { accessKeyId: SPACES.key, secretAccessKey: SPACES.secret },
-    })
-  }
-  return s3
-}
-
-function spacesPublicBase(): string {
-  return SPACES.cdnUrl || `https://${SPACES.bucket}.${SPACES.region}.digitaloceanspaces.com`
-}
-
-function newObjectName(ext: string): { yyyy: string; mm: string; filename: string } {
-  const now = new Date()
-  return {
-    yyyy: String(now.getUTCFullYear()),
-    mm: String(now.getUTCMonth() + 1).padStart(2, '0'),
-    filename: `${now.getTime().toString(36)}-${randomBytes(6).toString('hex')}.${ext}`,
-  }
-}
+const FILENAME_RE = /^([a-z0-9]+-[a-f0-9]{12})\.([a-z0-9]{2,5})$/i
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
 export interface SavedUpload {
-  /** URL to reference from article HTML: absolute CDN URL (spaces) or /uploads/… (local). */
+  /** URL to reference from article HTML, e.g. /uploads/mufkdhhk-e8018adae9d2.png */
   url: string
   filename: string
   backend: StorageBackend
-  /** Object key (spaces) or path relative to UPLOADS_DIR (local). */
-  key: string
+  id: string
 }
 
-export async function saveUpload(buf: Buffer, mime: string): Promise<SavedUpload> {
+export async function saveUpload(buf: Buffer, mime: string, uploadedBy?: string): Promise<SavedUpload> {
   const ext = ALLOWED_TYPES[mime]
   if (!ext) throw new Error(`Unsupported type ${mime}`)
-  const { yyyy, mm, filename } = newObjectName(ext)
+  const id = newId()
+  const filename = `${id}.${ext}`
 
-  if (storageBackend() === 'spaces') {
-    const key = `${SPACES.prefix}/${yyyy}/${mm}/${filename}`
-    await s3Client().send(new PutObjectCommand({
-      Bucket: SPACES.bucket,
-      Key: key,
-      Body: buf,
-      ContentType: mime,
-      ContentLength: buf.length,
-      ACL: 'public-read',
-      CacheControl: 'public, max-age=31536000, immutable',
-    }))
-    return { url: `${spacesPublicBase()}/${key}`, filename, backend: 'spaces', key }
+  if (storageBackend() === 'db') {
+    await pool.query(
+      `INSERT INTO nuvho_kb.uploads (id, ext, mime, size_bytes, data, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, ext, mime, buf.length, buf, uploadedBy ?? null],
+    )
+    return { url: `${UPLOADS_URL_PREFIX}/${filename}`, filename, backend: 'db', id }
   }
 
+  const now = new Date()
+  const yyyy = String(now.getUTCFullYear())
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0')
   const dir = path.join(UPLOADS_DIR, yyyy, mm)
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(path.join(dir, filename), buf, { flag: 'wx' })
-  const key = `${yyyy}/${mm}/${filename}`
-  return { url: `${UPLOADS_URL_PREFIX}/${key}`, filename, backend: 'local', key }
+  return { url: `${UPLOADS_URL_PREFIX}/${yyyy}/${mm}/${filename}`, filename, backend: 'local', id }
 }
 
-/** Local backend only: map URL segments back to a file inside UPLOADS_DIR. Returns null on
- *  any traversal attempt or unexpected character — segments may only be [a-z0-9][a-z0-9._-]*. */
+// ─── Read (DB backend) ───────────────────────────────────────────────────────
+
+export interface StoredUpload {
+  mime: string
+  data: Buffer
+  size: number
+  createdAt: Date
+}
+
+/** Fetch one stored image by its URL filename (<id>.<ext>). Null when the name is malformed,
+ *  unknown, or the extension does not match the stored one. */
+export async function readUpload(filename: string): Promise<StoredUpload | null> {
+  const m = filename.match(FILENAME_RE)
+  if (!m) return null
+  const [, id, ext] = m
+  const r = await pool.query(
+    'SELECT mime, ext, data, size_bytes, created_at FROM nuvho_kb.uploads WHERE id = $1',
+    [id],
+  )
+  if (r.rowCount === 0) return null
+  const row = r.rows[0]
+  if (row.ext !== ext.toLowerCase()) return null
+  return { mime: row.mime, data: row.data, size: row.size_bytes, createdAt: row.created_at }
+}
+
+// ─── Local backend path guard ────────────────────────────────────────────────
+
+/** Map URL segments back to a file inside UPLOADS_DIR. Returns null on any traversal attempt
+ *  or unexpected character — segments may only be [a-z0-9][a-z0-9._-]*. */
 export function resolveUploadPath(segments: string[]): string | null {
   if (!segments.length || segments.some(s => !/^[a-z0-9][a-z0-9._-]*$/i.test(s))) return null
   const full = path.resolve(UPLOADS_DIR, ...segments)

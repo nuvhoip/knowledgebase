@@ -75,18 +75,19 @@ article styles. The `<>` toolbar button still exposes the raw HTML.
 
 - **Images** dropped, pasted or inserted in the editor, and the hero image field, upload to
   `POST /api/admin/uploads` (images only — JPG, PNG, WebP, GIF — up to `MAX_UPLOAD_MB`,
-  default 10). Objects are named `<yyyy>/<mm>/<random>.<ext>` and referenced by URL from the
-  article HTML.
-- **Storage** (`lib/uploads.ts`, chosen by environment):
-  - **DigitalOcean Spaces** — used when `SPACES_BUCKET`, `SPACES_KEY` and `SPACES_SECRET` are
-    set. **Required in production**: the App Platform containers that serve knowledge.nuvho.com
-    have no persistent disk, so local files vanish on every deploy. Objects are public-read under
-    `SPACES_PREFIX/` and served from the Space's CDN (`SPACES_CDN_URL`).
-  - **Local disk** — fallback when the Spaces variables are blank. Writes under `UPLOADS_DIR`
-    (`./uploads` in dev, the `knowledge-uploads` volume at `/app/uploads` in Docker) and serves
-    them at `/uploads/…` via `app/uploads/[...path]/route.ts`.
-  - The upload response includes `backend: "spaces" | "local"` so a deployment can be checked
-    with one test upload.
+  default 10) and are referenced by URL from the article HTML.
+- **Storage** (`lib/uploads.ts`, `UPLOAD_STORAGE`):
+  - **`db` (default)** — rows in `nuvho_kb.uploads` in the main Postgres database
+    (migration `scripts/005_uploads.sql`), served by the app at `/uploads/<id>.<ext>` with
+    immutable caching. This is the production setting: the App Platform containers that serve
+    knowledge.nuvho.com have no persistent disk, and Cloudflare in front caches image
+    extensions so Postgres is read about once per image per edge. Images ride along in every
+    database backup.
+  - **`local`** — files under `UPLOADS_DIR` (`./uploads` in dev, the `knowledge-uploads`
+    volume at `/app/uploads` in Docker), served at `/uploads/<yyyy>/<mm>/<file>`. For a plain
+    Docker host only.
+  - The upload response includes `backend: "db" | "local"` so a deployment can be checked with
+    one test upload.
 - **Sanitising**: every save route runs the HTML through `lib/sanitize.ts` (allow-list of the
   tags, attributes and inline styles that `.nw-prose` renders) before it reaches Postgres.
 - **Attachments** (PDF, Office files) are intentionally not accepted yet. To enable them, add
@@ -97,14 +98,14 @@ article styles. The `<>` toolbar button still exposes the raw HTML.
 
 Production (knowledge.nuvho.com) runs on **DigitalOcean App Platform** behind Cloudflare, built
 from this repository. Set the environment variables from `.env.example` in the App Platform
-component settings — in particular the `SPACES_*` group, without which uploads fall back to the
-container's ephemeral disk. Setting up the Space:
+component settings. For image uploads:
 
-1. Spaces → Create Space in the region closest to the app (e.g. `syd1`), **enable CDN**.
-2. API → Spaces Keys → generate a key pair; put them in `SPACES_KEY` / `SPACES_SECRET`.
-3. Set `SPACES_BUCKET` to the Space name and `SPACES_CDN_URL` to its CDN endpoint.
-4. Deploy, then upload one image from an article's Edit page and confirm the response's
-   `backend` is `spaces` and the image URL is on the CDN host.
+1. Run `scripts/005_uploads.sql` once against the production database (creates
+   `nuvho_kb.uploads`).
+2. Leave `UPLOAD_STORAGE` unset or `db`. Do **not** set `local` on App Platform — the
+   container disk is wiped on every deploy.
+3. Deploy, then upload one image from an article's Edit page and confirm the response's
+   `backend` is `db` and the image loads at its `/uploads/<id>.<ext>` URL.
 
 ### Alternative: Docker host (servermain)
 
@@ -112,8 +113,9 @@ container's ephemeral disk. Setting up the Space:
 2. Push to server or transfer via `docker save`
 3. Run `docker compose up -d` on the server
 4. Point nginx at port 3000 for `knowledge.nuvho.com`
-5. Either set the `SPACES_*` variables in `.env` (recommended) or rely on the
-   `knowledge-uploads` volume that `docker-compose.yml` mounts at `/app/uploads`.
+5. Uploads default to the database (`UPLOAD_STORAGE=db`). To keep them on disk instead, set
+   `UPLOAD_STORAGE=local`; `docker-compose.yml` already mounts the `knowledge-uploads` volume
+   at `/app/uploads`.
 6. Allow editor uploads through nginx — the default 1 MB body limit blocks them:
 
    ```nginx
