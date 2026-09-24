@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
       filename: saved.filename,
       size: buf.length,
       type: mime,
+      // 'spaces' in production; 'local' means the Spaces env vars are missing (see lib/uploads.ts)
+      backend: saved.backend,
     })
   } catch (err) {
     console.error('[admin/uploads POST]', err)
