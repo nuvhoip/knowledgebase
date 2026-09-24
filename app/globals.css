@@ -826,3 +826,47 @@
   .nw-reader { padding: 24px; border-radius: 16px; }
   .nw-hero--photo.nw-hero--inner { min-height: 0; }
 }
+
+/* ── Rich text editor — TinyMCE 8 inline (components/editor/TinyEditor.tsx) ──────────────
+   Field anatomy follows §5: 1px border, 6px radius, Blue Slate on focus. The toolbar is
+   pinned into .na-editor__toolbar (fixed_toolbar_container); the writing surface carries
+   .nw-prose so authors see the published typography. Oxide skin classes (.tox-*) are
+   overridden only where the default grey chrome clashes with the Nuvho palette. */
+.na-editor { border: 1px solid var(--nv-border); border-radius: 6px; background: var(--nv-white); overflow: hidden; transition: border-color var(--nv-dur) var(--nv-ease); }
+.na-editor:focus-within { border-color: var(--nv-blue-slate); box-shadow: inset 0 0 0 .5px var(--nv-blue-slate); }
+.na-editor--disabled { background: var(--nv-surface-disabled); pointer-events: none; }
+.na-editor__toolbar { min-height: 40px; background: var(--nv-surface-page); border-bottom: 1px solid var(--nv-border); }
+.na-editor__toolbar .tox-tinymce-inline { position: static !important; width: 100% !important; border: 0; border-radius: 0; box-shadow: none; }
+.na-editor__toolbar .tox .tox-editor-header { padding: 0; background: transparent; box-shadow: none; border-bottom: 0; }
+.na-editor__toolbar .tox .tox-toolbar,
+.na-editor__toolbar .tox .tox-toolbar__primary,
+.na-editor__toolbar .tox .tox-toolbar__overflow { background: transparent; }
+.na-editor__body { display: flex; flex-direction: column; padding: 16px 20px 24px; }
+.na-editor__body .mce-content-body { flex: 1; outline: none; }
+.na-editor__body .mce-content-body[data-mce-placeholder]::before { color: var(--nv-text-meta); }
+.na-editor__body .mce-content-body img[data-mce-selected] { outline: 2px solid var(--nv-tropical-teal); outline-offset: 2px; }
+.na-editor__body .mce-content-body figure.image { display: table; margin: 0 0 20px; }
+.na-editor__body .mce-content-body figure.image figcaption { display: table-caption; caption-side: bottom; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-muted); padding-top: 8px; }
+.na-editor--loading .na-editor__body { flex-direction: row; align-items: center; gap: 10px; font: 400 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
+
+/* Nuvho accent on the oxide toolbar (staff-only surface) */
+.na-editor .tox { font-family: var(--nv-font-body); }
+.na-editor .tox .tox-tbtn { color: var(--nv-text-body); }
+.na-editor .tox .tox-tbtn svg { fill: currentColor; }
+.na-editor .tox .tox-tbtn:hover { background: rgba(40,104,127,.08); color: var(--nv-text-heading); }
+.na-editor .tox .tox-tbtn--enabled, .na-editor .tox .tox-tbtn--enabled:hover { background: rgba(40,104,127,.14); color: var(--nv-text-heading); }
+.na-editor .tox .tox-tbtn--select { color: var(--nv-text-body); }
+.na-editor .tox .tox-toolbar__group { padding: 0 6px; }
+
+/* Dialogs render at document level, outside .na-editor */
+.tox .tox-dialog { border-radius: 14px; border-color: var(--nv-border-hair); font-family: var(--nv-font-body); }
+.tox .tox-dialog__title { font: 600 18px/1.3 var(--nv-font-display); color: var(--nv-text-heading); }
+.tox .tox-button:not(.tox-button--secondary):not(.tox-button--naked):not(.tox-button--icon) { background: var(--nv-blue-slate); border-color: var(--nv-blue-slate); }
+.tox .tox-button:not(.tox-button--secondary):not(.tox-button--naked):not(.tox-button--icon):hover { background: var(--nv-blue-500); border-color: var(--nv-blue-500); }
+.tox .tox-textfield:focus, .tox .tox-listbox:focus { border-color: var(--nv-blue-slate); box-shadow: 0 0 0 1px var(--nv-blue-slate); }
+
+/* Hero image field with Upload button (components/ImageUploadField.tsx) */
+.na-upload .na-hero-preview { flex-wrap: wrap; }
+.na-upload .na-hero-preview .na-input { flex: 1 1 240px; width: auto; }
+.na-upload .na-help { display: block; margin-top: 6px; }
+.na-upload .na-error { display: block; margin-top: 8px; }

@@ -66,11 +66,40 @@ public/
 
 Fonts: **Comfortaa** (headings) · **Raleway** (body) — loaded from Google Fonts.
 
+## Article editor & image uploads
+
+Staff (@nuvho.com) edit article bodies in a self-hosted **TinyMCE 8** editor
+(GPL, bundled from npm — no Tiny Cloud account or API key, no runtime calls to tiny.cloud).
+It runs in inline mode inside the page so it inherits the brand fonts and the `.nw-prose`
+article styles. The `<>` toolbar button still exposes the raw HTML.
+
+- **Images** dropped, pasted or inserted in the editor, and the hero image field, upload to
+  `POST /api/admin/uploads` (images only — JPG, PNG, WebP, GIF — up to `MAX_UPLOAD_MB`,
+  default 10). Files are stored under `UPLOADS_DIR` as `<yyyy>/<mm>/<random>.<ext>` and served
+  at `/uploads/…` by `app/uploads/[...path]/route.ts`.
+- **Storage**: production mounts the `knowledge-uploads` Docker volume at `/app/uploads`
+  (see `docker-compose.yml`). Back it up with the database. Local dev writes to `./uploads`.
+- **Sanitising**: every save route runs the HTML through `lib/sanitize.ts` (allow-list of the
+  tags, attributes and inline styles that `.nw-prose` renders) before it reaches Postgres.
+- **Attachments** (PDF, Office files) are intentionally not accepted yet. To enable them, add
+  the MIME type in `ALLOWED_TYPES` / `sniffType()` in `lib/uploads.ts` and widen
+  `ACCEPTED_IMAGE_TYPES` in `lib/uploadClient.ts`.
+
 ## Deploy to servermain.nuvho.com
 
 1. Build image: `docker build -t knowledge-nuvho:latest .`
 2. Push to server or transfer via `docker save`
 3. Run `docker compose up -d` on the server
 4. Point nginx at port 3000 for `knowledge.nuvho.com`
+5. Allow editor uploads through nginx — the default 1 MB body limit blocks them:
+
+   ```nginx
+   # /etc/nginx/sites-available/knowledge.nuvho.com — inside the server {} block
+   client_max_body_size 12m;   # ≥ MAX_UPLOAD_MB plus multipart overhead
+   ```
+
+   Optional: serve uploads straight from the volume instead of through Node by adding
+   `location /uploads/ { alias <volume mountpoint>/; expires 1y; add_header Cache-Control "public, immutable"; }`
+   where the mountpoint is `docker volume inspect knowledge-nuvho_knowledge-uploads`.
 
 Health check endpoint: `GET /api/health`

@@ -4,6 +4,8 @@ import { useState, FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { extractHero, injectHero } from '@/components/heroImage'
+import RichTextEditor from '@/components/RichTextEditor'
+import ImageUploadField from '@/components/ImageUploadField'
 
 interface Props {
   categorySlug: string
@@ -16,7 +18,9 @@ interface Props {
 
 // Fields follow the Figma field law (browser-app §5); buttons the Figma Button (§4).
 // The hero image lives at the top of the article HTML (see components/heroImage.ts);
-// this form edits it as its own field and keeps the body HTML separate.
+// this form edits it as its own field and keeps the body HTML separate. The body is
+// edited in TinyMCE (components/RichTextEditor.tsx); images dropped into it are uploaded
+// to /api/admin/uploads and referenced by URL. The server sanitises on save (lib/sanitize.ts).
 export default function ArticleEditForm({
   categorySlug, slug, initialTitle, initialDescription, initialContent, initialReadTime,
 }: Props) {
@@ -72,15 +76,14 @@ export default function ArticleEditForm({
       </div>
 
       <div className="na-field">
-        <label className="na-label" htmlFor="heroSrc">Hero image URL <small>optional</small></label>
-        <div className="na-hero-preview">
-          {heroSrc.trim() && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={heroSrc.trim()} alt="" />
-          )}
-          <input id="heroSrc" type="url" value={heroSrc} onChange={e => setHeroSrc(e.target.value)} className="na-input" placeholder="https://…/image.jpg" />
-        </div>
-        <span className="na-help">Shown full-width behind the title under the Tropical Teal veil, and on article tiles. Leave blank for the gradient hero. Stored as the first element of the article HTML.</span>
+        <label className="na-label" htmlFor="heroSrc">Hero image <small>optional</small></label>
+        <ImageUploadField
+          id="heroSrc"
+          value={heroSrc}
+          onChange={setHeroSrc}
+          disabled={saving}
+          help="Shown full-width behind the title under the Tropical Teal veil, and on article tiles. Upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Leave blank for the gradient hero."
+        />
       </div>
 
       {heroSrc.trim() && (
@@ -91,8 +94,12 @@ export default function ArticleEditForm({
       )}
 
       <div className="na-field">
-        <label className="na-label" htmlFor="content">Content <small>HTML supported</small></label>
-        <textarea id="content" value={body} onChange={e => setBody(e.target.value)} className="na-textarea na-textarea--code" rows={18} placeholder="<p>Article body…</p>" />
+        <label className="na-label" htmlFor="content">Content</label>
+        <RichTextEditor id="content" value={body} onChange={setBody} disabled={saving} minHeight={420} />
+        <span className="na-help">
+          Drag, paste or insert images straight into the text and they upload automatically.
+          The <strong>&lt;&gt;</strong> button opens the raw HTML for anything the toolbar does not cover.
+        </span>
       </div>
 
       <div className="na-field na-field--sm">

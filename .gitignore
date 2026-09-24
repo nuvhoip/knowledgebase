@@ -23,3 +23,6 @@ out/
 *.bak
 .env*
 !.env.example
+
+# editor image uploads (local dev — production uses a Docker volume)
+/uploads/

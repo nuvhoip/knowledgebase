@@ -1,8 +1,10 @@
 'use client'
 
-import { Fragment, useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import Icon from '@/components/Icon'
-import { injectHero } from '@/components/heroImage'
+import { extractHero, injectHero } from '@/components/heroImage'
+import RichTextEditor from '@/components/RichTextEditor'
+import ImageUploadField from '@/components/ImageUploadField'
 
 // Admin dashboard — browser-app law (nuvho-web-design references/browser-app-shell.md):
 // §4 Figma Button · §5 Figma field · §6 table (48px rows, sentence-case header)
@@ -362,8 +364,7 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
   setVisibility: (v: VisibilityValue | '') => void
   onSave: () => void; onCancel: () => void; saving: boolean; saveLabel: string; showCategory: boolean
   /** Hero image URL (stored at the top of the article HTML — components/heroImage.ts).
-   *  Offered on create only; existing articles manage it on their Edit page, where the
-   *  full HTML is loaded. */
+   *  Shown on create and, once startEdit has loaded the stored HTML, on inline edit too. */
   hero?: string; setHero?: (v: string) => void; showHero?: boolean
 }) {
   const subsForCategory = subcategories.filter(s => s.category_slug === category)
@@ -404,20 +405,23 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
       </div>
       {showHero && setHero && (
         <div className="na-field">
-          <label className="na-label">Hero image URL <small>optional</small></label>
-          <div className="na-hero-preview">
-            {hero.trim() && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={hero.trim()} alt="" />
-            )}
-            <input type="url" value={hero} onChange={e => setHero(e.target.value)} placeholder="https://…/image.jpg" className="na-input" />
-          </div>
-          <span className="na-help">Full-width behind the title and on tiles. Stored as the first element of the article HTML; change it later on the article&apos;s Edit page.</span>
+          <label className="na-label" htmlFor="heroSrc">Hero image <small>optional</small></label>
+          <ImageUploadField
+            id="heroSrc"
+            value={hero}
+            onChange={setHero}
+            disabled={saving}
+            help="Full-width behind the title and on tiles. Upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Stored as the first element of the article HTML."
+          />
         </div>
       )}
       <div className="na-field">
-        <label className="na-label">Content <small>{showHero ? 'HTML' : 'HTML — leave blank to keep existing (hero image is edited on the article page)'}</small></label>
-        <textarea value={content} onChange={e => setContent(e.target.value)} rows={6} placeholder="<p>Article HTML content…</p>" className="na-textarea na-textarea--code" />
+        <label className="na-label">Content</label>
+        <RichTextEditor value={content} onChange={setContent} disabled={saving} minHeight={320} />
+        <span className="na-help">
+          Drag, paste or insert images straight into the text and they upload automatically.
+          The <strong>&lt;&gt;</strong> button opens the raw HTML.
+        </span>
       </div>
       <div className="na-row-inline">
         <div className="na-field na-field--sm">
@@ -1023,6 +1027,13 @@ function ArticlesTab({
   const [fReadTime, setFReadTime] = useState('5')
   const [fFeatured, setFFeatured] = useState(false)
   const [fHero, setFHero] = useState('')
+  const [fHeroAlt, setFHeroAlt] = useState('')
+  // True once startEdit has fetched the stored HTML. Until then an empty editor means
+  // "leave the content unchanged", never "wipe it".
+  const [fContentLoaded, setFContentLoaded] = useState(false)
+  // Which row's body the in-flight startEdit fetch belongs to (guards against a late
+  // response landing in a different row's form).
+  const editKeyRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1051,17 +1062,38 @@ function ArticlesTab({
     .filter(a => !filterCategory || a.category_slug === filterCategory)
     .filter(a => !filterStatus || a.status === filterStatus)
 
-  function startEdit(art: AdminArticle) {
-    setEditingKey(`${art.category_slug}/${art.slug}`)
+  async function startEdit(art: AdminArticle) {
+    const key = `${art.category_slug}/${art.slug}`
+    editKeyRef.current = key
+    setEditingKey(key)
     setFTitle(art.title)
     setFDesc(art.description)
     setFCategory(art.category_slug)
     setFSubcategory(art.subcategory_slug)
     setFVisibility(art.visibility ?? '')
     setFContent('')
+    setFHero('')
+    setFHeroAlt('')
+    setFContentLoaded(false)
     setFReadTime(String(art.read_time))
     setFFeatured(art.featured)
     setShowAdd(false)
+
+    // The list endpoint omits the HTML body; fetch it so the editor shows the real article.
+    try {
+      const res = await fetch(`/api/admin/articles/${art.category_slug}/${art.slug}`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (editKeyRef.current !== key) return
+      const { hero, body } = extractHero(data.content ?? '')
+      setFContent(body)
+      setFHero(hero?.src ?? '')
+      setFHeroAlt(hero?.alt ?? '')
+      setFContentLoaded(true)
+    } catch {
+      if (editKeyRef.current !== key) return
+      onToast('Could not load the article body. Existing content will be kept unless you type something.', 'error')
+    }
   }
 
   function startAdd() {
@@ -1077,9 +1109,13 @@ function ArticlesTab({
     setFReadTime('5')
     setFFeatured(false)
     setFHero('')
+    setFHeroAlt('')
+    setFContentLoaded(false)
+    editKeyRef.current = null
   }
 
   function cancel() {
+    editKeyRef.current = null
     setEditingKey(null)
     setShowAdd(false)
   }
@@ -1095,7 +1131,9 @@ function ArticlesTab({
         subcategorySlug: fSubcategory,
         visibility: fVisibility || null,
       }
-      if (fContent.trim()) body.content = fContent
+      // Send content only when the editor holds the real body (or the author typed
+      // something / set a hero) so a failed load can never blank an article.
+      if (fContentLoaded || fContent.trim() || fHero.trim()) body.content = injectHero(fContent, fHero, fHeroAlt)
       const res = await fetch(`/api/articles/${art.category_slug}/${art.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1121,7 +1159,7 @@ function ArticlesTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: fTitle, description: fDesc, categorySlug: fCategory, subcategorySlug: fSubcategory,
-          content: injectHero(fContent, fHero), readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
+          content: injectHero(fContent, fHero, fHeroAlt), readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
         }),
       })
       const data = await res.json()
@@ -1320,6 +1358,7 @@ function ArticlesTab({
                           setContent={setFContent} setReadTime={setFReadTime} setFeatured={setFFeatured} setVisibility={setFVisibility}
                           onSave={() => saveEdit(art)} onCancel={cancel} saving={saving} saveLabel="Save changes"
                           showCategory={false}
+                          hero={fHero} setHero={setFHero} showHero
                         />
                       </td>
                     </tr>

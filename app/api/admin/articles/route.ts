@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { sanitizeArticleHtml } from '@/lib/sanitize'
 
 function slugify(text: string): string {
   return text
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO nuvho_kb.articles
          (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW())`,
-      [slug, title.trim(), description.trim(), categorySlug.trim(), subcategorySlug.trim(), content || null,
+      [slug, title.trim(), description.trim(), categorySlug.trim(), subcategorySlug.trim(), sanitizeArticleHtml(content),
        Number(readTime) || 5, Boolean(featured), order, visibility ?? null]
     )
 
