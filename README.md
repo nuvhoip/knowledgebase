@@ -66,11 +66,65 @@ public/
 
 Fonts: **Comfortaa** (headings) · **Raleway** (body) — loaded from Google Fonts.
 
-## Deploy to servermain.nuvho.com
+## Article editor & image uploads
+
+Staff (@nuvho.com) edit article bodies in a self-hosted **TinyMCE 8** editor
+(GPL, bundled from npm — no Tiny Cloud account or API key, no runtime calls to tiny.cloud).
+It runs in inline mode inside the page so it inherits the brand fonts and the `.nw-prose`
+article styles. The `<>` toolbar button still exposes the raw HTML.
+
+- **Images** dropped, pasted or inserted in the editor, and the hero image field, upload to
+  `POST /api/admin/uploads` (images only — JPG, PNG, WebP, GIF — up to `MAX_UPLOAD_MB`,
+  default 10) and are referenced by URL from the article HTML.
+- **Storage** (`lib/uploads.ts`, `UPLOAD_STORAGE`):
+  - **`db` (default)** — rows in `nuvho_kb.uploads` in the main Postgres database
+    (migration `scripts/005_uploads.sql`), served by the app at `/uploads/<id>.<ext>` with
+    immutable caching. This is the production setting: the App Platform containers that serve
+    knowledge.nuvho.com have no persistent disk, and Cloudflare in front caches image
+    extensions so Postgres is read about once per image per edge. Images ride along in every
+    database backup.
+  - **`local`** — files under `UPLOADS_DIR` (`./uploads` in dev, the `knowledge-uploads`
+    volume at `/app/uploads` in Docker), served at `/uploads/<yyyy>/<mm>/<file>`. For a plain
+    Docker host only.
+  - The upload response includes `backend: "db" | "local"` so a deployment can be checked with
+    one test upload.
+- **Sanitising**: every save route runs the HTML through `lib/sanitize.ts` (allow-list of the
+  tags, attributes and inline styles that `.nw-prose` renders) before it reaches Postgres.
+- **Attachments** (PDF, Office files) are intentionally not accepted yet. To enable them, add
+  the MIME type in `ALLOWED_TYPES` / `sniffType()` in `lib/uploads.ts` and widen
+  `ACCEPTED_IMAGE_TYPES` in `lib/uploadClient.ts`.
+
+## Deploy
+
+Production (knowledge.nuvho.com) runs on **DigitalOcean App Platform** behind Cloudflare, built
+from this repository. Set the environment variables from `.env.example` in the App Platform
+component settings. For image uploads:
+
+1. Run `scripts/005_uploads.sql` once against the production database (creates
+   `nuvho_kb.uploads`).
+2. Leave `UPLOAD_STORAGE` unset or `db`. Do **not** set `local` on App Platform — the
+   container disk is wiped on every deploy.
+3. Deploy, then upload one image from an article's Edit page and confirm the response's
+   `backend` is `db` and the image loads at its `/uploads/<id>.<ext>` URL.
+
+### Alternative: Docker host (servermain)
 
 1. Build image: `docker build -t knowledge-nuvho:latest .`
 2. Push to server or transfer via `docker save`
 3. Run `docker compose up -d` on the server
 4. Point nginx at port 3000 for `knowledge.nuvho.com`
+5. Uploads default to the database (`UPLOAD_STORAGE=db`). To keep them on disk instead, set
+   `UPLOAD_STORAGE=local`; `docker-compose.yml` already mounts the `knowledge-uploads` volume
+   at `/app/uploads`.
+6. Allow editor uploads through nginx — the default 1 MB body limit blocks them:
+
+   ```nginx
+   # /etc/nginx/sites-available/knowledge.nuvho.com — inside the server {} block
+   client_max_body_size 12m;   # ≥ MAX_UPLOAD_MB plus multipart overhead
+   ```
+
+   Optional: serve uploads straight from the volume instead of through Node by adding
+   `location /uploads/ { alias <volume mountpoint>/; expires 1y; add_header Cache-Control "public, immutable"; }`
+   where the mountpoint is `docker volume inspect knowledge-nuvho_knowledge-uploads`.
 
 Health check endpoint: `GET /api/health`

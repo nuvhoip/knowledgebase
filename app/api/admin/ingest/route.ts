@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Pool } from 'pg'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { sanitizeArticleHtml } from '@/lib/sanitize'
 
 /**
  * POST /api/admin/ingest
@@ -173,7 +174,7 @@ export async function POST(req: NextRequest) {
         description.trim(),
         categorySlug.trim(),
         resolvedSubcategorySlug,
-        content || null,
+        sanitizeArticleHtml(content),
         Number(readTime) || 5,
         order,
         visibility ?? null,

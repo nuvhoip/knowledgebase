@@ -1,6 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
+import Icon from '@/components/Icon'
+import { extractHero, injectHero } from '@/components/heroImage'
+import RichTextEditor from '@/components/RichTextEditor'
+import ImageUploadField from '@/components/ImageUploadField'
+
+// Admin dashboard — browser-app law (nuvho-web-design references/browser-app-shell.md):
+// §4 Figma Button · §5 Figma field · §6 table (48px rows, sentence-case header)
+// §8 badge status mapping · §9 modal 520 / 440 confirm. All data handling is unchanged;
+// only the markup and classes were rebuilt.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,12 +85,13 @@ interface SyncTarget {
 }
 
 // ─── Tier config ──────────────────────────────────────────────────────────────
+// Badge variants map to the §8 status law: good / info / warning / critical.
 
-const TIERS: { value: SyncTier; label: string; description: string; color: string }[] = [
-  { value: 'domain', label: 'Domain', description: 'Public-facing knowledge for all Nuvho clients', color: 'bg-green-100 text-green-800 border-green-200' },
-  { value: 'internal', label: 'Internal', description: 'Nuvho staff only — internal operations', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { value: 'client', label: 'Client', description: 'Shared with specific hotel clients', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { value: 'confidential', label: 'Confidential', description: 'Restricted — executive or sensitive data', color: 'bg-red-100 text-red-800 border-red-200' },
+const TIERS: { value: SyncTier; label: string; description: string; badge: string }[] = [
+  { value: 'domain',       label: 'Domain',       description: 'Public-facing knowledge for all Nuvho clients', badge: 'na-badge--good' },
+  { value: 'internal',     label: 'Internal',     description: 'Nuvho staff only — internal operations',        badge: 'na-badge--info' },
+  { value: 'client',       label: 'Client',       description: 'Shared with specific hotel clients',            badge: 'na-badge--warn' },
+  { value: 'confidential', label: 'Confidential', description: 'Restricted — executive or sensitive data',      badge: 'na-badge--crit' },
 ]
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -93,50 +103,45 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
   }, [onClose])
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg font-body text-sm max-w-sm
-      ${type === 'success' ? 'bg-tropical-teal text-white' : 'bg-red-500 text-white'}`}>
-      {type === 'success' ? (
-        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-      ) : (
-        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      )}
+    <div className={`na-toast${type === 'error' ? ' na-toast--error' : ''}`} role="status" aria-live="polite">
+      <Icon name={type === 'success' ? 'circle-check' : 'circle-xmark'} size={16} />
       <span>{message}</span>
-      <button onClick={onClose} className="ml-auto shrink-0 opacity-70 hover:opacity-100">✕</button>
+      <button type="button" onClick={onClose} className="na-toast__close" aria-label="Dismiss">
+        <Icon name="xmark" size={12} />
+      </button>
     </div>
   )
 }
 
-// ─── Confirm dialog ───────────────────────────────────────────────────────────
+// ─── Confirm dialog (§9: 440 confirm) ─────────────────────────────────────────
 
 function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
-        <div className="flex items-start gap-3 mb-5">
-          <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="font-heading font-semibold text-iron-grey text-base">Confirm Delete</h3>
-            <p className="font-body text-sm text-gray-500 mt-1">{message}</p>
-          </div>
+    <div className="na-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div className="na-modal na-modal--confirm">
+        <div className="na-modal__head">
+          <h3 id="confirm-title" className="na-modal__title">Confirm delete</h3>
+          <button type="button" onClick={onCancel} className="na-modal__close" aria-label="Close">
+            <Icon name="xmark" size={14} />
+          </button>
         </div>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} className="btn-outline px-4 py-2 text-sm">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 text-sm font-heading font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">Delete</button>
+        <div className="na-modal__body">
+          <div className="na-modal__icon"><Icon name="triangle-exclamation" size={20} /></div>
+          <p>{message}</p>
+        </div>
+        <div className="na-modal__foot">
+          <button type="button" onClick={onCancel} className="nv-btn nv-btn--secondary">Cancel</button>
+          <button type="button" onClick={onConfirm} className="nv-btn nv-btn--danger">
+            <Icon name="trash-can" size={16} />
+            Delete
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Sync Modal ───────────────────────────────────────────────────────────────
+// ─── Sync Modal (§9: 520) ─────────────────────────────────────────────────────
 
 function SyncModal({ target, onClose }: { target: SyncTarget; onClose: (synced?: boolean) => void }) {
   const [tier, setTier] = useState<SyncTier>('domain')
@@ -171,91 +176,80 @@ function SyncModal({ target, onClose }: { target: SyncTarget; onClose: (synced?:
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full">
+    <div className="na-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+      <div className="na-modal">
         {done ? (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-tropical-teal/10 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-tropical-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+          <>
+            <div className="na-modal__body">
+              <div className="na-modal__centre">
+                <div className="na-modal__icon na-modal__icon--good"><Icon name="circle-check" size={20} /></div>
+                <h3 id="sync-title">Synced successfully</h3>
+                <p>
+                  <strong>{target.title}</strong> has been synced to the <strong>{TIERS.find(t => t.value === tier)?.label}</strong> tier.
+                </p>
+              </div>
             </div>
-            <h3 className="font-heading font-bold text-iron-grey mb-1">Synced Successfully</h3>
-            <p className="font-body text-sm text-gray-500 mb-5">
-              <span className="font-medium">{target.title}</span> has been synced to the <span className="font-medium capitalize">{tier}</span> tier.
-            </p>
-            <button onClick={() => onClose(true)} className="btn-primary px-6 py-2 text-sm">Done</button>
-          </div>
+            <div className="na-modal__foot">
+              <button type="button" onClick={() => onClose(true)} className="nv-btn">Done</button>
+            </div>
+          </>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-5">
+            <div className="na-modal__head">
               <div>
-                <h3 className="font-heading font-bold text-iron-grey text-base">Sync to Vector DB</h3>
-                <p className="font-body text-xs text-gray-400 mt-0.5 truncate max-w-xs">{target.title}</p>
+                <h3 id="sync-title" className="na-modal__title">Sync to Vector DB</h3>
+                <p className="na-modal__sub">{target.title}</p>
               </div>
-              <button onClick={() => onClose()} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              <button type="button" onClick={() => onClose()} className="na-modal__close" aria-label="Close">
+                <Icon name="xmark" size={14} />
               </button>
             </div>
 
-            <p className="font-body text-sm text-gray-600 mb-4">Select the access tier for this article&apos;s embeddings:</p>
+            <div className="na-modal__body">
+              <p>Select the access tier for this article&apos;s embeddings.</p>
 
-            <div className="space-y-2 mb-5">
-              {TIERS.map(t => (
-                <label key={t.value} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all
-                  ${tier === t.value ? `${t.color} border-current` : 'border-gray-200 hover:border-gray-300'}`}>
+              <div className="na-form" style={{ gap: 8 }}>
+                {TIERS.map(t => (
+                  <label key={t.value} className={`na-tier${tier === t.value ? ' na-tier--active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="tier"
+                      value={t.value}
+                      checked={tier === t.value}
+                      onChange={() => setTier(t.value)}
+                    />
+                    <div>
+                      <strong>{t.label}</strong>
+                      <span>{t.description}</span>
+                    </div>
+                    <span className={`na-badge ${t.badge}`}>{t.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {tier === 'client' && (
+                <div className="na-field">
+                  <label className="na-label" htmlFor="hgid">Hotel Group ID <span className="na-req">*</span></label>
                   <input
-                    type="radio"
-                    name="tier"
-                    value={t.value}
-                    checked={tier === t.value}
-                    onChange={() => setTier(t.value)}
-                    className="mt-0.5 accent-blue-slate"
+                    id="hgid"
+                    type="text"
+                    value={hgid}
+                    onChange={e => setHgid(e.target.value)}
+                    placeholder="e.g. hg-001"
+                    className="na-input"
                   />
-                  <div>
-                    <span className="font-heading font-semibold text-sm capitalize">{t.label}</span>
-                    <p className="font-body text-xs opacity-75 mt-0.5">{t.description}</p>
-                  </div>
-                </label>
-              ))}
+                  <span className="na-help">Required for client-tier embeddings — identifies which hotel group can access this content.</span>
+                </div>
+              )}
+
+              {error && <p className="na-error" role="alert">{error}</p>}
             </div>
 
-            {tier === 'client' && (
-              <div className="mb-4">
-                <label className="block font-heading font-semibold text-sm text-iron-grey mb-1">
-                  Hotel Group ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={hgid}
-                  onChange={e => setHgid(e.target.value)}
-                  placeholder="e.g. hg-001"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-tropical-teal/40"
-                />
-                <p className="font-body text-xs text-gray-400 mt-1">Required for client-tier embeddings — identifies which hotel group can access this content.</p>
-              </div>
-            )}
-
-            {error && <p className="font-body text-sm text-red-500 mb-3">{error}</p>}
-
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => onClose()} className="btn-outline px-4 py-2 text-sm" disabled={loading}>Cancel</button>
-              <button
-                onClick={handleSync}
-                disabled={loading}
-                className="btn-primary px-5 py-2 text-sm flex items-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                    Syncing&hellip;
-                  </>
-                ) : 'Confirm Sync'}
+            <div className="na-modal__foot">
+              <button type="button" onClick={() => onClose()} className="nv-btn nv-btn--secondary" disabled={loading}>Cancel</button>
+              <button type="button" onClick={handleSync} disabled={loading} className="nv-btn">
+                {loading ? <span className="nv-spin nv-spin--sm nv-spin--w" /> : <Icon name="arrows-rotate" size={16} />}
+                {loading ? 'Syncing…' : 'Confirm sync'}
               </button>
             </div>
           </>
@@ -266,29 +260,25 @@ function SyncModal({ target, onClose }: { target: SyncTarget; onClose: (synced?:
 }
 
 // ─── Icon picker ──────────────────────────────────────────────────────────────
-// Visual picker offering 10 common category icons (replaces the old free-text
-// "Icon filename" input). Selecting a swatch sets the same plain-string icon
-// value (e.g. "rocket.svg") that CategoryForm already stores via setIcon.
+// Visual picker offering 10 common category icons. Selecting a swatch sets the same
+// plain-string icon value (e.g. "rocket.svg") that CategoryForm already stores via setIcon.
 
 function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="na-iconpick" role="radiogroup" aria-label="Category icon">
       {CATEGORY_ICONS.map(iconFile => {
         const selected = value === iconFile
         return (
           <button
             key={iconFile}
             type="button"
+            role="radio"
+            aria-checked={selected}
             onClick={() => onChange(iconFile)}
             title={iconFile}
-            className={`flex items-center justify-center p-2 rounded-lg border transition-colors ${
-              selected
-                ? 'border-blue-slate bg-blue-slate/10'
-                : 'border-gray-200 hover:border-blue-slate/50'
-            }`}
+            className={selected ? 'na-iconpick--active' : undefined}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/icons/${iconFile}`} alt={iconFile} className="w-5 h-5 icon-teal" />
+            <Icon name={iconFile} size={20} alt={iconFile.replace('.svg', '')} />
           </button>
         )
       })}
@@ -305,58 +295,53 @@ function CategoryForm({ title, desc, icon, visibility, setTitle, setDesc, setIco
   onSave: () => void; onCancel: () => void; saving: boolean; saveLabel: string
 }) {
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Title *</label>
+    <div className="na-form">
+      <div className="na-grid-2">
+        <div className="na-field">
+          <label className="na-label">Title <span className="na-req">*</span></label>
           <input
             value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="e.g. Booking &amp; Reservations"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors"
+            placeholder="e.g. Booking & Reservations"
+            className="na-input"
           />
         </div>
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Visibility</label>
+        <div className="na-field">
+          <label className="na-label">Visibility</label>
           <select
             value={visibility}
             onChange={e => setVisibility(e.target.value as VisibilityValue)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate"
+            className="na-select"
           >
             <option value="public">Public</option>
             <option value="private">Private</option>
           </select>
         </div>
       </div>
-      <div>
-        <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Icon</label>
+      <div className="na-field">
+        <label className="na-label">Icon</label>
         <IconPicker value={icon} onChange={setIcon} />
       </div>
-      <div>
-        <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Description *</label>
+      <div className="na-field">
+        <label className="na-label">Description <span className="na-req">*</span></label>
         <textarea
           value={desc} onChange={e => setDesc(e.target.value)}
-          rows={2}
           placeholder="Short description of this category…"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors resize-none"
+          className="na-textarea"
         />
       </div>
-      <p className="font-body text-xs text-gray-400">
+      <p className="na-help">
         <strong>Public</strong> — visible to everyone on knowledge.nuvho.com.{' '}
         <strong>Private</strong> — visitors must log in to view articles in this category (unless a sub-category or article overrides it).
       </p>
-      <div className="flex gap-2 justify-end">
-        <button onClick={onCancel} className="btn-outline px-4 py-2 text-sm" disabled={saving}>Cancel</button>
+      <div className="na-form__actions">
+        <button type="button" onClick={onCancel} className="nv-btn nv-btn--secondary" disabled={saving}>Cancel</button>
         <button
+          type="button"
           onClick={onSave}
           disabled={saving || !title.trim() || !desc.trim()}
-          className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+          className="nv-btn"
         >
-          {saving && (
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-          )}
+          {saving && <span className="nv-spin nv-spin--sm nv-spin--w" />}
           {saveLabel}
         </button>
       </div>
@@ -368,7 +353,7 @@ function CategoryForm({ title, desc, icon, visibility, setTitle, setDesc, setIco
 
 function ArticleForm({ categories, subcategories, title, desc, category, subcategory, content, readTime, featured, visibility,
   setTitle, setDesc, setCategory, setSubcategory, setContent, setReadTime, setFeatured, setVisibility,
-  onSave, onCancel, saving, saveLabel, showCategory }: {
+  onSave, onCancel, saving, saveLabel, showCategory, hero = '', setHero, showHero = false }: {
   categories: AdminCategory[]
   subcategories: AdminSubcategory[]
   title: string; desc: string; category: string; subcategory: string; content: string; readTime: string; featured: boolean
@@ -378,74 +363,80 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
   setContent: (v: string) => void; setReadTime: (v: string) => void; setFeatured: (v: boolean) => void
   setVisibility: (v: VisibilityValue | '') => void
   onSave: () => void; onCancel: () => void; saving: boolean; saveLabel: string; showCategory: boolean
+  /** Hero image URL (stored at the top of the article HTML — components/heroImage.ts).
+   *  Shown on create and, once startEdit has loaded the stored HTML, on inline edit too. */
+  hero?: string; setHero?: (v: string) => void; showHero?: boolean
 }) {
   const subsForCategory = subcategories.filter(s => s.category_slug === category)
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className={showCategory ? '' : 'sm:col-span-2'}>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Title *</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Article title"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors" />
+    <div className="na-form">
+      <div className="na-grid-2">
+        <div className="na-field">
+          <label className="na-label">Title <span className="na-req">*</span></label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Article title" className="na-input" />
         </div>
         {showCategory && (
-          <div>
-            <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Category *</label>
-            <select value={category} onChange={e => setCategory(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate">
+          <div className="na-field">
+            <label className="na-label">Category <span className="na-req">*</span></label>
+            <select value={category} onChange={e => setCategory(e.target.value)} className="na-select">
               {categories.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
             </select>
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Sub-category *</label>
+      <div className="na-grid-2">
+        <div className="na-field">
+          <label className="na-label">Sub-category <span className="na-req">*</span></label>
           <select value={subcategory} onChange={e => setSubcategory(e.target.value)}
             disabled={subsForCategory.length === 0}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate">
+            className="na-select">
             {subsForCategory.length === 0 && <option value="">No sub-categories in this category</option>}
             {subsForCategory.map(s => <option key={s.slug} value={s.slug}>{s.title}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Visibility</label>
+        <div className="na-field">
+          <label className="na-label">Visibility</label>
           <VisibilitySelect value={visibility} onChange={setVisibility} inheritLabel="Inherit from category/sub-category" />
         </div>
       </div>
-      <div>
-        <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Description *</label>
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Short description…"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors resize-none" />
+      <div className="na-field">
+        <label className="na-label">Description <span className="na-req">*</span></label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Short description…" className="na-textarea" />
       </div>
-      <div>
-        <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">
-          Content (HTML) <span className="text-gray-300 font-normal">— leave blank to keep existing</span>
-        </label>
-        <textarea value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="<p>Article HTML content…</p>"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-iron-grey focus:outline-none focus:border-blue-slate transition-colors resize-y" />
-      </div>
-      <div className="flex items-center gap-4">
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Read time (min)</label>
-          <input type="number" min={1} max={60} value={readTime} onChange={e => setReadTime(e.target.value)}
-            className="w-20 border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate" />
+      {showHero && setHero && (
+        <div className="na-field">
+          <label className="na-label" htmlFor="heroSrc">Hero image <small>optional</small></label>
+          <ImageUploadField
+            id="heroSrc"
+            value={hero}
+            onChange={setHero}
+            disabled={saving}
+            help="Full-width behind the title and on tiles. Upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Stored as the first element of the article HTML."
+          />
         </div>
-        <label className="flex items-center gap-2 cursor-pointer mt-4">
-          <input type="checkbox" checked={featured} onChange={e => setFeatured(e.target.checked)}
-            className="w-4 h-4 accent-blue-slate" />
-          <span className="font-heading text-xs font-semibold text-gray-500">Featured article</span>
+      )}
+      <div className="na-field">
+        <label className="na-label">Content</label>
+        <RichTextEditor value={content} onChange={setContent} disabled={saving} minHeight={320} />
+        <span className="na-help">
+          Drag, paste or insert images straight into the text and they upload automatically.
+          The <strong>&lt;&gt;</strong> button opens the raw HTML.
+        </span>
+      </div>
+      <div className="na-row-inline">
+        <div className="na-field na-field--sm">
+          <label className="na-label">Read time (min)</label>
+          <input type="number" min={1} max={60} value={readTime} onChange={e => setReadTime(e.target.value)} className="na-input" />
+        </div>
+        <label className="na-check" style={{ height: 44 }}>
+          <input type="checkbox" checked={featured} onChange={e => setFeatured(e.target.checked)} />
+          Featured article
         </label>
       </div>
-      <div className="flex gap-2 justify-end">
-        <button onClick={onCancel} className="btn-outline px-4 py-2 text-sm" disabled={saving}>Cancel</button>
-        <button onClick={onSave} disabled={saving || !title.trim() || !desc.trim()} className="btn-primary px-4 py-2 text-sm flex items-center gap-2">
-          {saving && (
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-          )}
+      <div className="na-form__actions">
+        <button type="button" onClick={onCancel} className="nv-btn nv-btn--secondary" disabled={saving}>Cancel</button>
+        <button type="button" onClick={onSave} disabled={saving || !title.trim() || !desc.trim()} className="nv-btn">
+          {saving && <span className="nv-spin nv-spin--sm nv-spin--w" />}
           {saveLabel}
         </button>
       </div>
@@ -453,12 +444,11 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
   )
 }
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
+// ─── Status badge (§8: published → Semantic good · pending → Semantic warning) ──
 
 function StatusBadge({ status }: { status: 'pending' | 'published' }) {
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-heading font-semibold
-      ${status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+    <span className={`na-badge ${status === 'published' ? 'na-badge--good' : 'na-badge--warn'}`}>
       {status === 'published' ? 'Live' : 'Pending'}
     </span>
   )
@@ -468,16 +458,10 @@ function StatusBadge({ status }: { status: 'pending' | 'published' }) {
 
 function VisibilityBadge({ visibility, inherited }: { visibility: VisibilityValue; inherited?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-heading font-semibold
-      ${visibility === 'public' ? 'bg-blue-50 text-blue-slate' : 'bg-red-50 text-red-600'}`}>
-      {visibility === 'private' && (
-        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      )}
+    <span className={`na-badge ${visibility === 'public' ? 'na-badge--neutral' : 'na-badge--crit'}`}>
+      {visibility === 'private' && <Icon name="lock" size={12} />}
       {visibility === 'public' ? 'Public' : 'Private'}
-      {inherited && <span className="opacity-60 font-normal">(inherited)</span>}
+      {inherited && <span className="na-badge__muted">(inherited)</span>}
     </span>
   )
 }
@@ -492,12 +476,20 @@ function VisibilitySelect({ value, onChange, inheritLabel = 'Inherit from parent
     <select
       value={value}
       onChange={e => onChange(e.target.value as VisibilityValue | '')}
-      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate"
+      className="na-select"
     >
       <option value="">{inheritLabel}</option>
       <option value="public">Public</option>
       <option value="private">Private</option>
     </select>
+  )
+}
+
+function Loading() {
+  return (
+    <div className="na-loading" role="status" aria-live="polite">
+      <span className="nv-spin" />
+    </div>
   )
 }
 
@@ -609,137 +601,123 @@ function CategoriesTab({ onToast }: { onToast: (msg: string, type: 'success' | '
     }
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-16">
-      <svg className="w-6 h-6 animate-spin text-blue-slate" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-      </svg>
-    </div>
-  )
+  if (loading) return <Loading />
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="font-body text-sm text-gray-500">
+      <div className="na-toolbar">
+        <div className="na-toolbar__left">
           {categories.length} {categories.length === 1 ? 'category' : 'categories'}
-        </p>
+        </div>
         {!showAdd && (
-          <button onClick={startAdd} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Category
+          <button type="button" onClick={startAdd} className="nv-btn">
+            <Icon name="plus" size={16} />
+            Add category
           </button>
         )}
       </div>
 
       {showAdd && (
-        <div className="nuvho-card p-5 mb-4 border-2 border-tropical-teal/30">
-          <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">New Category</h4>
+        <div className="na-card na-card--form">
+          <h4 className="na-form__title">New category</h4>
           <CategoryForm
             title={formTitle} desc={formDesc} icon={formIcon} visibility={formVisibility}
             setTitle={setFormTitle} setDesc={setFormDesc} setIcon={setFormIcon} setVisibility={setFormVisibility}
-            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create Category"
+            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create category"
           />
         </div>
       )}
 
-      <div className="nuvho-table-card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="na-card na-card--table">
+        <table className="na-table">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left font-heading font-semibold text-gray-400 text-xs px-5 py-3 uppercase tracking-wide">Category</th>
-              <th className="text-left font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide hidden md:table-cell">Icon</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide">Visibility</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide">Articles</th>
-              <th className="px-5 py-3 w-28"></th>
+            <tr>
+              <th>Category</th>
+              <th>Icon</th>
+              <th className="na-table__c">Visibility</th>
+              <th className="na-table__c">Articles</th>
+              <th className="na-table__r" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
             {categories.map(cat => {
               const isExpanded = expandedSlug === cat.slug
               return (
-              <>
-                <tr key={cat.slug} className="border-b border-gray-50">
-                  <td className="px-5 py-3">
-                    <button
-                      onClick={() => setExpandedSlug(isExpanded ? null : cat.slug)}
-                      className="flex items-start gap-2 text-left group/expand"
-                    >
-                      <svg
-                        className={`w-4 h-4 mt-1 flex-shrink-0 text-gray-400 group-hover/expand:text-blue-slate transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                <Fragment key={cat.slug}>
+                  <tr className="na-row">
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSlug(isExpanded ? null : cat.slug)}
+                        className={`na-expander${isExpanded ? ' na-expander--open' : ''}`}
+                        aria-expanded={isExpanded}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
-                      </svg>
-                      <span>
-                        <p className="font-heading font-semibold text-iron-grey group-hover/expand:text-blue-slate transition-colors">{cat.title}</p>
-                        <p className="font-body text-xs text-gray-400 mt-0.5 truncate max-w-xs">{cat.description}</p>
-                        <p className="font-mono text-xs text-gray-300 mt-0.5">{cat.slug}</p>
-                      </span>
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 hidden md:table-cell">
-                    {cat.icon ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/icons/${cat.icon}`} alt={cat.icon} title={cat.icon} className="w-5 h-5 icon-teal" />
-                    ) : (
-                      <span className="font-mono text-xs text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-center">
-                    <VisibilityBadge visibility={cat.visibility || 'public'} />
-                  </td>
-                  <td className="px-3 py-3 text-center">
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-slate font-heading font-semibold text-xs">
-                      {cat.article_count}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button onClick={() => setExpandedSlug(isExpanded ? null : cat.slug)} className="text-xs font-heading font-semibold text-tropical-teal hover:text-tropical-teal/70 transition-colors whitespace-nowrap">
-                        Sub-categories
+                        <Icon name="angle-right" size={12} />
+                        <span>
+                          <span className="na-table__title">{cat.title}</span>
+                          <p className="na-table__desc">{cat.description}</p>
+                          <p className="na-table__slug">{cat.slug}</p>
+                        </span>
                       </button>
-                      <button onClick={() => startEdit(cat)} className="text-xs font-heading font-semibold text-blue-slate hover:text-blue-slate/70 transition-colors">
-                        Edit
-                      </button>
-                      <button onClick={() => setConfirmDelete(cat)} className="text-xs font-heading font-semibold text-red-400 hover:text-red-600 transition-colors">
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {editingSlug === cat.slug && (
-                  <tr key={`${cat.slug}-edit`} className="bg-blue-50/40">
-                    <td colSpan={5} className="px-5 py-4">
-                      <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">Edit &ldquo;{cat.title}&rdquo;</h4>
-                      <CategoryForm
-                        title={formTitle} desc={formDesc} icon={formIcon} visibility={formVisibility}
-                        setTitle={setFormTitle} setDesc={setFormDesc} setIcon={setFormIcon} setVisibility={setFormVisibility}
-                        onSave={saveEdit} onCancel={cancel} saving={saving} saveLabel="Save Changes"
-                      />
+                    </td>
+                    <td>
+                      {cat.icon
+                        ? <Icon name={cat.icon} size={20} alt={cat.icon} />
+                        : <span className="na-table__sub">—</span>}
+                    </td>
+                    <td className="na-table__c">
+                      <VisibilityBadge visibility={cat.visibility || 'public'} />
+                    </td>
+                    <td className="na-table__c">
+                      <span className="na-count">{cat.article_count}</span>
+                    </td>
+                    <td>
+                      <div className="na-actions">
+                        <button type="button" onClick={() => setExpandedSlug(isExpanded ? null : cat.slug)} className="nv-btn nv-btn--ghost nv-btn--sm">
+                          <Icon name="layer-group" size={14} />
+                          Sub-categories
+                        </button>
+                        <button type="button" onClick={() => startEdit(cat)} className="nv-btn nv-btn--ghost nv-btn--sm">
+                          <Icon name="pen-to-square" size={14} />
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => setConfirmDelete(cat)} className="nv-btn nv-btn--ghost nv-btn--danger nv-btn--sm">
+                          <Icon name="trash-can" size={14} />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                )}
-                {isExpanded && (
-                  <tr key={`${cat.slug}-subs`} className="bg-white">
-                    <td colSpan={5} className="px-5 py-4">
-                      <CategorySubcategoriesPanel
-                        categorySlug={cat.slug}
-                        categoryVisibility={cat.visibility || 'public'}
-                        onToast={onToast}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </>
+                  {editingSlug === cat.slug && (
+                    <tr className="na-row--edit">
+                      <td colSpan={5}>
+                        <h4 className="na-form__title">Edit &ldquo;{cat.title}&rdquo;</h4>
+                        <CategoryForm
+                          title={formTitle} desc={formDesc} icon={formIcon} visibility={formVisibility}
+                          setTitle={setFormTitle} setDesc={setFormDesc} setIcon={setFormIcon} setVisibility={setFormVisibility}
+                          onSave={saveEdit} onCancel={cancel} saving={saving} saveLabel="Save changes"
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {isExpanded && (
+                    <tr className="na-row--panel">
+                      <td colSpan={5}>
+                        <CategorySubcategoriesPanel
+                          categorySlug={cat.slug}
+                          categoryVisibility={cat.visibility || 'public'}
+                          onToast={onToast}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
             {categories.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center font-body text-sm text-gray-400">
-                  No categories yet. Click &ldquo;Add Category&rdquo; to create one.
+                <td colSpan={5} className="na-empty">
+                  No categories yet. Click &ldquo;Add category&rdquo; to create one.
                 </td>
               </tr>
             )}
@@ -770,41 +748,33 @@ function SubcategoryForm({ categories, title, desc, categorySlug, visibility,
   onSave: () => void; onCancel: () => void; saving: boolean; saveLabel: string; showCategory: boolean
 }) {
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className={showCategory ? '' : 'sm:col-span-2'}>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Title *</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Rate Plans"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors" />
+    <div className="na-form">
+      <div className={showCategory ? 'na-grid-3' : 'na-grid-2'}>
+        <div className="na-field">
+          <label className="na-label">Title <span className="na-req">*</span></label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Rate Plans" className="na-input" />
         </div>
         {showCategory && (
-          <div>
-            <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Category *</label>
-            <select value={categorySlug} onChange={e => setCategorySlug(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate">
+          <div className="na-field">
+            <label className="na-label">Category <span className="na-req">*</span></label>
+            <select value={categorySlug} onChange={e => setCategorySlug(e.target.value)} className="na-select">
               {categories.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
             </select>
           </div>
         )}
-        <div>
-          <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Visibility</label>
+        <div className="na-field">
+          <label className="na-label">Visibility</label>
           <VisibilitySelect value={visibility} onChange={setVisibility} inheritLabel="Inherit from category" />
         </div>
       </div>
-      <div>
-        <label className="block font-heading text-xs font-semibold text-gray-500 mb-1">Description *</label>
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Short description…"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate transition-colors resize-none" />
+      <div className="na-field">
+        <label className="na-label">Description <span className="na-req">*</span></label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Short description…" className="na-textarea" />
       </div>
-      <div className="flex gap-2 justify-end">
-        <button onClick={onCancel} className="btn-outline px-4 py-2 text-sm" disabled={saving}>Cancel</button>
-        <button onClick={onSave} disabled={saving || !title.trim() || !desc.trim()} className="btn-primary px-4 py-2 text-sm flex items-center gap-2">
-          {saving && (
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-          )}
+      <div className="na-form__actions">
+        <button type="button" onClick={onCancel} className="nv-btn nv-btn--secondary" disabled={saving}>Cancel</button>
+        <button type="button" onClick={onSave} disabled={saving || !title.trim() || !desc.trim()} className="nv-btn">
+          {saving && <span className="nv-spin nv-spin--sm nv-spin--w" />}
           {saveLabel}
         </button>
       </div>
@@ -812,7 +782,7 @@ function SubcategoryForm({ categories, title, desc, categorySlug, visibility,
   )
 }
 
-// ─── Subcategories Tab ────────────────────────────────────────────────────────
+// ─── Subcategories panel ──────────────────────────────────────────────────────
 
 /** Inline panel shown when a category row is expanded — manages that one category's
  *  sub-categories. Lives under Categories, not as its own top-level tab. */
@@ -926,102 +896,90 @@ function CategorySubcategoriesPanel({ categorySlug, categoryVisibility, onToast 
   }
 
   return (
-    <div className="bg-[#F7F8F9] rounded-lg p-4 border border-gray-100">
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-heading text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          {subcategories.length} Sub-{subcategories.length === 1 ? 'category' : 'categories'}
-        </p>
+    <div className="na-subpanel">
+      <div className="na-subpanel__head">
+        <span>{subcategories.length} sub-{subcategories.length === 1 ? 'category' : 'categories'}</span>
         {!showAdd && (
-          <button onClick={startAdd} className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Sub-category
+          <button type="button" onClick={startAdd} className="nv-btn nv-btn--sm">
+            <Icon name="plus" size={14} />
+            Add sub-category
           </button>
         )}
       </div>
 
       {showAdd && (
-        <div className="nuvho-card p-4 mb-3 border-2 border-tropical-teal/30">
-          <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">New Sub-category</h4>
+        <div className="na-card na-card--form">
+          <h4 className="na-form__title">New sub-category</h4>
           <SubcategoryForm
             categories={[]}
             title={formTitle} desc={formDesc} categorySlug={categorySlug} visibility={formVisibility}
             setTitle={setFormTitle} setDesc={setFormDesc} setCategorySlug={() => {}} setVisibility={setFormVisibility}
-            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create Sub-category"
+            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create sub-category"
             showCategory={false}
           />
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <svg className="w-5 h-5 animate-spin text-blue-slate" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-        </div>
+        <Loading />
       ) : subcategories.length === 0 ? (
-        <p className="font-body text-sm text-gray-400 text-center py-6">
-          No sub-categories yet. Click &ldquo;Add Sub-category&rdquo; to create one.
-        </p>
+        <p className="na-empty">No sub-categories yet. Click &ldquo;Add sub-category&rdquo; to create one.</p>
       ) : (
-        <div className="nuvho-table-card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="na-card na-card--table">
+          <table className="na-table">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left font-heading font-semibold text-gray-400 text-xs px-4 py-2 uppercase tracking-wide">Sub-category</th>
-                <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-2 uppercase tracking-wide">Visibility</th>
-                <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-2 uppercase tracking-wide">Articles</th>
-                <th className="px-4 py-2 w-28"></th>
+              <tr>
+                <th>Sub-category</th>
+                <th className="na-table__c">Visibility</th>
+                <th className="na-table__c">Articles</th>
+                <th className="na-table__r" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody>
               {subcategories.map(sub => (
-                <>
-                  <tr key={sub.slug} className="border-b border-gray-50">
-                    <td className="px-4 py-2.5">
-                      <p className="font-heading font-semibold text-iron-grey text-sm">{sub.title}</p>
-                      <p className="font-body text-xs text-gray-400 mt-0.5 truncate max-w-xs">{sub.description}</p>
-                      <p className="font-mono text-xs text-gray-300 mt-0.5">{sub.slug}</p>
+                <Fragment key={sub.slug}>
+                  <tr className="na-row">
+                    <td>
+                      <span className="na-table__title">{sub.title}</span>
+                      <p className="na-table__desc">{sub.description}</p>
+                      <p className="na-table__slug">{sub.slug}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="na-table__c">
                       {sub.visibility
                         ? <VisibilityBadge visibility={sub.visibility} />
-                        : <VisibilityBadge visibility={categoryVisibility} inherited />
-                      }
+                        : <VisibilityBadge visibility={categoryVisibility} inherited />}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-slate font-heading font-semibold text-xs">
-                        {sub.article_count}
-                      </span>
+                    <td className="na-table__c">
+                      <span className="na-count">{sub.article_count}</span>
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => startEdit(sub)} className="text-xs font-heading font-semibold text-blue-slate hover:text-blue-slate/70 transition-colors">
+                    <td>
+                      <div className="na-actions">
+                        <button type="button" onClick={() => startEdit(sub)} className="nv-btn nv-btn--ghost nv-btn--sm">
+                          <Icon name="pen-to-square" size={14} />
                           Edit
                         </button>
-                        <button onClick={() => setConfirmDelete(sub)} className="text-xs font-heading font-semibold text-red-400 hover:text-red-600 transition-colors">
+                        <button type="button" onClick={() => setConfirmDelete(sub)} className="nv-btn nv-btn--ghost nv-btn--danger nv-btn--sm">
+                          <Icon name="trash-can" size={14} />
                           Delete
                         </button>
                       </div>
                     </td>
                   </tr>
                   {editingSlug === sub.slug && (
-                    <tr key={`${sub.slug}-edit`} className="bg-blue-50/40">
-                      <td colSpan={4} className="px-4 py-4">
-                        <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">Edit &ldquo;{sub.title}&rdquo;</h4>
+                    <tr className="na-row--edit">
+                      <td colSpan={4}>
+                        <h4 className="na-form__title">Edit &ldquo;{sub.title}&rdquo;</h4>
                         <SubcategoryForm
                           categories={[]}
                           title={formTitle} desc={formDesc} categorySlug={categorySlug} visibility={formVisibility}
                           setTitle={setFormTitle} setDesc={setFormDesc} setCategorySlug={() => {}} setVisibility={setFormVisibility}
-                          onSave={saveEdit} onCancel={cancel} saving={saving} saveLabel="Save Changes"
+                          onSave={saveEdit} onCancel={cancel} saving={saving} saveLabel="Save changes"
                           showCategory={false}
                         />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -1068,6 +1026,14 @@ function ArticlesTab({
   const [fContent, setFContent] = useState('')
   const [fReadTime, setFReadTime] = useState('5')
   const [fFeatured, setFFeatured] = useState(false)
+  const [fHero, setFHero] = useState('')
+  const [fHeroAlt, setFHeroAlt] = useState('')
+  // True once startEdit has fetched the stored HTML. Until then an empty editor means
+  // "leave the content unchanged", never "wipe it".
+  const [fContentLoaded, setFContentLoaded] = useState(false)
+  // Which row's body the in-flight startEdit fetch belongs to (guards against a late
+  // response landing in a different row's form).
+  const editKeyRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1096,17 +1062,38 @@ function ArticlesTab({
     .filter(a => !filterCategory || a.category_slug === filterCategory)
     .filter(a => !filterStatus || a.status === filterStatus)
 
-  function startEdit(art: AdminArticle) {
-    setEditingKey(`${art.category_slug}/${art.slug}`)
+  async function startEdit(art: AdminArticle) {
+    const key = `${art.category_slug}/${art.slug}`
+    editKeyRef.current = key
+    setEditingKey(key)
     setFTitle(art.title)
     setFDesc(art.description)
     setFCategory(art.category_slug)
     setFSubcategory(art.subcategory_slug)
     setFVisibility(art.visibility ?? '')
     setFContent('')
+    setFHero('')
+    setFHeroAlt('')
+    setFContentLoaded(false)
     setFReadTime(String(art.read_time))
     setFFeatured(art.featured)
     setShowAdd(false)
+
+    // The list endpoint omits the HTML body; fetch it so the editor shows the real article.
+    try {
+      const res = await fetch(`/api/admin/articles/${art.category_slug}/${art.slug}`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (editKeyRef.current !== key) return
+      const { hero, body } = extractHero(data.content ?? '')
+      setFContent(body)
+      setFHero(hero?.src ?? '')
+      setFHeroAlt(hero?.alt ?? '')
+      setFContentLoaded(true)
+    } catch {
+      if (editKeyRef.current !== key) return
+      onToast('Could not load the article body. Existing content will be kept unless you type something.', 'error')
+    }
   }
 
   function startAdd() {
@@ -1121,9 +1108,14 @@ function ArticlesTab({
     setFContent('')
     setFReadTime('5')
     setFFeatured(false)
+    setFHero('')
+    setFHeroAlt('')
+    setFContentLoaded(false)
+    editKeyRef.current = null
   }
 
   function cancel() {
+    editKeyRef.current = null
     setEditingKey(null)
     setShowAdd(false)
   }
@@ -1139,7 +1131,9 @@ function ArticlesTab({
         subcategorySlug: fSubcategory,
         visibility: fVisibility || null,
       }
-      if (fContent.trim()) body.content = fContent
+      // Send content only when the editor holds the real body (or the author typed
+      // something / set a hero) so a failed load can never blank an article.
+      if (fContentLoaded || fContent.trim() || fHero.trim()) body.content = injectHero(fContent, fHero, fHeroAlt)
       const res = await fetch(`/api/articles/${art.category_slug}/${art.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1165,7 +1159,7 @@ function ArticlesTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: fTitle, description: fDesc, categorySlug: fCategory, subcategorySlug: fSubcategory,
-          content: fContent, readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
+          content: injectHero(fContent, fHero, fHeroAlt), readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
         }),
       })
       const data = await res.json()
@@ -1214,24 +1208,18 @@ function ArticlesTab({
     }
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-16">
-      <svg className="w-6 h-6 animate-spin text-blue-slate" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-      </svg>
-    </div>
-  )
+  if (loading) return <Loading />
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-body text-sm text-gray-500">{filtered.length} of {articles.length} articles</p>
+      <div className="na-toolbar">
+        <div className="na-toolbar__left">
+          <span>{filtered.length} of {articles.length} articles</span>
           <select
             value={filterCategory}
             onChange={e => setFilterCategory(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate"
+            className="na-select"
+            aria-label="Filter by category"
           >
             <option value="">All categories</option>
             {categories.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
@@ -1239,7 +1227,8 @@ function ArticlesTab({
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value as '' | 'pending' | 'published')}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-body text-iron-grey focus:outline-none focus:border-blue-slate"
+            className="na-select"
+            aria-label="Filter by status"
           >
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -1247,19 +1236,17 @@ function ArticlesTab({
           </select>
         </div>
         {!showAdd && (
-          <button onClick={startAdd} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Article
+          <button type="button" onClick={startAdd} className="nv-btn">
+            <Icon name="plus" size={16} />
+            Add article
           </button>
         )}
       </div>
 
       {showAdd && (
-        <div className="nuvho-card p-5 mb-4 border-2 border-tropical-teal/30">
-          <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">New Article</h4>
-          <p className="font-body text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 mb-3">
+        <div className="na-card na-card--form">
+          <h4 className="na-form__title">New article</h4>
+          <p className="na-notice" style={{ marginBottom: 20 }}>
             New articles are saved as <strong>Pending</strong> and must be published before they appear publicly.
           </p>
           <ArticleForm
@@ -1270,126 +1257,118 @@ function ArticlesTab({
             setCategory={v => { setFCategory(v); setFSubcategory(subcategories.find(s => s.category_slug === v)?.slug ?? '') }}
             setSubcategory={setFSubcategory} setContent={setFContent}
             setReadTime={setFReadTime} setFeatured={setFFeatured} setVisibility={setFVisibility}
-            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create Article"
+            onSave={saveAdd} onCancel={cancel} saving={saving} saveLabel="Create article"
             showCategory
+            hero={fHero} setHero={setFHero} showHero
           />
         </div>
       )}
 
-      <div className="nuvho-table-card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="na-card na-card--table">
+        <table className="na-table">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left font-heading font-semibold text-gray-400 text-xs px-5 py-3 uppercase tracking-wide">Article</th>
-              <th className="text-left font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide hidden lg:table-cell">Category / Sub-category</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide hidden md:table-cell">Time</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide">Status</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide">Visibility</th>
-              <th className="text-center font-heading font-semibold text-gray-400 text-xs px-3 py-3 uppercase tracking-wide hidden lg:table-cell">Vector DB</th>
-              <th className="px-5 py-3 w-44"></th>
+            <tr>
+              <th>Article</th>
+              <th>Category / sub-category</th>
+              <th className="na-table__c">Read time</th>
+              <th className="na-table__c">Status</th>
+              <th className="na-table__c">Visibility</th>
+              <th className="na-table__c">Vector DB</th>
+              <th className="na-table__r" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(art => {
               const key = `${art.category_slug}/${art.slug}`
+              const tier = TIERS.find(t => t.value === art.vector_tier)
               return (
-                <>
-                  <tr key={key} className={`border-b border-gray-50 ${art.status === 'pending' ? 'bg-yellow-50/30' : ''}`}>
-                    <td className="px-5 py-3">
-                      <button onClick={() => startEdit(art)} className="text-left">
-                        <div className="flex items-center gap-2">
-                          <p className="font-heading font-semibold text-iron-grey hover:text-blue-slate transition-colors">{art.title}</p>
-                          {art.featured && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-heading font-semibold bg-yellow-100 text-yellow-700">★</span>
-                          )}
-                        </div>
+                <Fragment key={key}>
+                  <tr className="na-row">
+                    <td>
+                      <button type="button" onClick={() => startEdit(art)} className="na-table__title">
+                        {art.title}
+                        {art.featured && <Icon name="bookmark" size={14} alt="Featured" />}
                       </button>
-                      <p className="font-body text-xs text-gray-400 mt-0.5 truncate max-w-xs">{art.description}</p>
-                      <p className="font-mono text-xs text-gray-300 mt-0.5">{art.slug}</p>
+                      <p className="na-table__desc">{art.description}</p>
+                      <p className="na-table__slug">{art.slug}</p>
                     </td>
-                    <td className="px-3 py-3 hidden lg:table-cell">
-                      <span className="font-body text-xs text-gray-500">{art.category_title}</span>
-                      <span className="block font-body text-xs text-gray-400">↳ {art.subcategory_title}</span>
+                    <td>
+                      <span className="na-table__sub">{art.category_title}</span>
+                      <span className="na-table__sub">{art.subcategory_title}</span>
                     </td>
-                    <td className="px-3 py-3 text-center hidden md:table-cell">
-                      <span className="font-body text-xs text-gray-400">{art.read_time}m</span>
+                    <td className="na-table__c">
+                      <span className="na-table__sub">{art.read_time} min</span>
                     </td>
-                    <td className="px-3 py-3 text-center">
+                    <td className="na-table__c">
                       <StatusBadge status={art.status} />
                     </td>
-                    <td className="px-3 py-3 text-center">
+                    <td className="na-table__c">
                       <VisibilityBadge visibility={effectiveVisibility(art)} inherited={!art.visibility} />
                     </td>
-                    <td className="px-3 py-3 text-center hidden lg:table-cell">
+                    <td className="na-table__c">
                       {art.vector_tier ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-heading font-semibold border
-                          ${TIERS.find(t => t.value === art.vector_tier)?.color ?? 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                          {art.vector_tier}
+                        <span className={`na-badge ${tier?.badge ?? 'na-badge--neutral'}`}>
+                          {tier?.label ?? art.vector_tier}
                         </span>
                       ) : (
-                        <span className="font-body text-xs text-gray-300">—</span>
+                        <span className="na-table__sub">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2 justify-end">
+                    <td>
+                      <div className="na-actions">
                         {art.status === 'pending' ? (
-                          <button
-                            onClick={() => doPublish(art, 'publish')}
-                            className="text-xs font-heading font-semibold text-green-600 hover:text-green-700 transition-colors whitespace-nowrap"
-                          >
+                          <button type="button" onClick={() => doPublish(art, 'publish')} className="nv-btn nv-btn--ghost nv-btn--sm">
+                            <Icon name="cloud-arrow-up" size={14} />
                             Publish
                           </button>
                         ) : (
-                          <button
-                            onClick={() => doPublish(art, 'unpublish')}
-                            className="text-xs font-heading font-semibold text-yellow-600 hover:text-yellow-700 transition-colors whitespace-nowrap"
-                          >
+                          <button type="button" onClick={() => doPublish(art, 'unpublish')} className="nv-btn nv-btn--ghost nv-btn--sm">
+                            <Icon name="eye-slash" size={14} />
                             Unpublish
                           </button>
                         )}
                         <button
+                          type="button"
                           onClick={() => setSyncTarget({ categorySlug: art.category_slug, slug: art.slug, title: art.title })}
-                          className="text-xs font-heading font-semibold text-tropical-teal hover:text-tropical-teal/70 transition-colors whitespace-nowrap"
+                          className="nv-btn nv-btn--ghost nv-btn--sm"
                         >
+                          <Icon name="arrows-rotate" size={14} />
                           Sync
                         </button>
-                        <button
-                          onClick={() => startEdit(art)}
-                          className="text-xs font-heading font-semibold text-blue-slate hover:text-blue-slate/70 transition-colors"
-                        >
+                        <button type="button" onClick={() => startEdit(art)} className="nv-btn nv-btn--ghost nv-btn--sm">
+                          <Icon name="pen-to-square" size={14} />
                           Edit
                         </button>
-                        <button
-                          onClick={() => setConfirmDelete(art)}
-                          className="text-xs font-heading font-semibold text-red-400 hover:text-red-600 transition-colors"
-                        >
+                        <button type="button" onClick={() => setConfirmDelete(art)} className="nv-btn nv-btn--ghost nv-btn--danger nv-btn--sm">
+                          <Icon name="trash-can" size={14} />
                           Delete
                         </button>
                       </div>
                     </td>
                   </tr>
                   {editingKey === key && (
-                    <tr key={`${key}-edit`} className="bg-blue-50/40">
-                      <td colSpan={7} className="px-5 py-4">
-                        <h4 className="font-heading font-semibold text-iron-grey text-sm mb-3">Edit &ldquo;{art.title}&rdquo;</h4>
+                    <tr className="na-row--edit">
+                      <td colSpan={7}>
+                        <h4 className="na-form__title">Edit &ldquo;{art.title}&rdquo;</h4>
                         <ArticleForm
                           categories={categories} subcategories={subcategories}
                           title={fTitle} desc={fDesc} category={fCategory} subcategory={fSubcategory}
                           content={fContent} readTime={fReadTime} featured={fFeatured} visibility={fVisibility}
                           setTitle={setFTitle} setDesc={setFDesc} setCategory={setFCategory} setSubcategory={setFSubcategory}
                           setContent={setFContent} setReadTime={setFReadTime} setFeatured={setFFeatured} setVisibility={setFVisibility}
-                          onSave={() => saveEdit(art)} onCancel={cancel} saving={saving} saveLabel="Save Changes"
+                          onSave={() => saveEdit(art)} onCancel={cancel} saving={saving} saveLabel="Save changes"
                           showCategory={false}
+                          hero={fHero} setHero={setFHero} showHero
                         />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center font-body text-sm text-gray-400">
+                <td colSpan={7} className="na-empty">
                   {articles.length === 0 ? 'No articles yet.' : 'No articles match the current filters.'}
                 </td>
               </tr>
@@ -1415,6 +1394,11 @@ function ArticlesTab({
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
+const TABS: { key: 'categories' | 'articles'; label: string }[] = [
+  { key: 'categories', label: 'Categories' },
+  { key: 'articles',   label: 'Articles' },
+]
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'categories' | 'articles'>('categories')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -1426,23 +1410,19 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-white rounded-xl p-1 shadow-sm border border-gray-100 w-fit">
-        {(['categories', 'articles'] as const).map(tab => (
+      <div className="na-tabs" role="tablist">
+        {TABS.map(tab => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`relative px-5 py-2 rounded-lg text-sm font-heading font-semibold capitalize transition-all
-              ${activeTab === tab
-                ? 'bg-blue-slate text-white shadow-sm'
-                : 'text-gray-400 hover:text-iron-grey'}`}
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`na-tab${activeTab === tab.key ? ' na-tab--active' : ''}`}
           >
-            {tab}
-            {tab === 'articles' && pendingCount > 0 && (
-              <span className={`ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold
-                ${activeTab === tab ? 'bg-yellow-400 text-yellow-900' : 'bg-yellow-400 text-yellow-900'}`}>
-                {pendingCount}
-              </span>
+            {tab.label}
+            {tab.key === 'articles' && pendingCount > 0 && (
+              <span className="na-tab__count" title={`${pendingCount} pending`}>{pendingCount}</span>
             )}
           </button>
         ))}

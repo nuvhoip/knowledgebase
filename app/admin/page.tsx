@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import Header from '@/components/Header'
+import SiteHeader from '@/components/SiteHeader'
 import Footer from '@/components/Footer'
 import { getSession } from '@/lib/auth'
 import AdminDashboard from './AdminDashboard'
@@ -7,9 +7,11 @@ import AdminDashboard from './AdminDashboard'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Admin Dashboard — Nuvho Knowledge Base',
+  title: 'Admin dashboard — Nuvho Knowledge Base',
 }
 
+// Admin stays inside the site chrome (decision 3); the page body follows the
+// browser-app law: page title UI H1, 1280 max-width, Figma table/badge/field/modal.
 export default async function AdminPage() {
   const session = await getSession()
   if (!session || !session.email.endsWith('@nuvho.com')) {
@@ -18,21 +20,14 @@ export default async function AdminPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-1 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-1">
-              <svg className="w-6 h-6 text-blue-slate" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <h1 className="font-heading text-2xl font-bold text-iron-grey">Admin Dashboard</h1>
+      <SiteHeader />
+      <main className="flex-1 na-page">
+        <div className="nw-wrap nw-wrap--app">
+          <div className="na-head">
+            <div>
+              <h1 className="na-title">Admin dashboard</h1>
+              <p className="na-sub">Signed in as <strong>{session.email}</strong></p>
             </div>
-            <p className="font-body text-sm text-gray-400 ml-9">
-              Signed in as <span className="text-blue-slate font-medium">{session.email}</span>
-            </p>
           </div>
           <AdminDashboard />
         </div>

@@ -6,6 +6,33 @@ interface RouteParams {
   params: { categorySlug: string; slug: string }
 }
 
+/** GET /api/admin/articles/[categorySlug]/[slug]
+ *  One article including its stored HTML (the list endpoint omits content). Used by the
+ *  admin dashboard's inline editor. */
+export async function GET(_req: NextRequest, { params }: RouteParams) {
+  const session = await getSession()
+  if (!session || !session.email.endsWith('@nuvho.com')) {
+    return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT slug, title, description, category_slug, subcategory_slug, content,
+              read_time, featured, status, visibility, updated_at
+       FROM nuvho_kb.articles
+       WHERE category_slug = $1 AND slug = $2`,
+      [params.categorySlug, params.slug]
+    )
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Article not found.' }, { status: 404 })
+    }
+    return NextResponse.json(result.rows[0])
+  } catch (err) {
+    console.error('[admin/articles GET one]', err)
+    return NextResponse.json({ error: 'Failed to fetch article.' }, { status: 500 })
+  }
+}
+
 /** PATCH /api/admin/articles/[categorySlug]/[slug]
  *  Publish or unpublish an article.
  *  Body: { action: 'publish' | 'unpublish' }

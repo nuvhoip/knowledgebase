@@ -18,3 +18,11 @@ out/
 
 # vercel
 .vercel
+
+# backups / recovered env copies (.env.local.bak was leaked this way)
+*.bak
+.env*
+!.env.example
+
+# editor image uploads (local dev — production uses a Docker volume)
+/uploads/
