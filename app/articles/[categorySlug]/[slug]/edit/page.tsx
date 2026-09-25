@@ -49,19 +49,18 @@ export default async function ArticleEditPage({ params }: Props) {
           meta={<span>Editing as {session.email}</span>}
         />
 
-        <section className="nw-section nw-section--tight">
+        {/* Same band + centred reader card as the article page, so the editor sits where the article renders */}
+        <section className="nw-section nw-section--band nw-section--tight">
           <div className="nw-wrap">
-            <div className="nw-article">
-              <div className="na-card">
-                <ArticleEditForm
-                  categorySlug={params.categorySlug}
-                  slug={params.slug}
-                  initialTitle={article.title}
-                  initialDescription={article.description}
-                  initialContent={article.content ?? ''}
-                  initialReadTime={article.readTime}
-                />
-              </div>
+            <div className="nw-reader">
+              <ArticleEditForm
+                categorySlug={params.categorySlug}
+                slug={params.slug}
+                initialTitle={article.title}
+                initialDescription={article.description}
+                initialContent={article.content ?? ''}
+                initialReadTime={article.readTime}
+              />
             </div>
           </div>
         </section>
