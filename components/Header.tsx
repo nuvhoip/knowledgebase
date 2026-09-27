@@ -1,148 +1,205 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Icon from './Icon'
 
-interface SessionUser {
-  name: string
-  email: string
-  role: string
+export interface HeaderTopic {
+  slug: string
+  title: string
+  description: string
+  icon: string
+  isPrivate: boolean
 }
 
-export default function Header() {
+export interface HeaderUser {
+  name: string
+  email: string
+}
+
+interface Props {
+  user: HeaderUser | null
+  topics: HeaderTopic[]
+}
+
+// Header 85 (Figma 646:3) + mega-menu (642:2) + ≤900px drawer (responsive.md).
+export default function Header({ user, topics }: Props) {
   const router = useRouter()
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [user, setUser] = useState<SessionUser | null>(null)
-  const [authLoaded, setAuthLoaded] = useState(false)
+  const [megaOpen, setMegaOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerTopics, setDrawerTopics] = useState(true)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isStaff = !!user?.email.endsWith('@nuvho.com')
+  const firstName = user?.name.split(' ')[0] ?? ''
+
+  function openMega() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setMegaOpen(true)
+  }
+  function scheduleClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setMegaOpen(false), 140)
+  }
+  function closeAll() {
+    setMegaOpen(false)
+    setDrawerOpen(false)
+  }
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then(res => res.json())
-      .then(data => {
-        setUser(data ?? null)
-        setAuthLoaded(true)
-      })
-      .catch(() => setAuthLoaded(true))
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeAll()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
-    setUser(null)
+    closeAll()
     router.push('/')
     router.refresh()
   }
 
-  const firstName = user?.name?.split(' ')[0] ?? ''
-
   return (
-    <header className="bg-blue-slate shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0">
-            <Image
-              src="/logo-white.svg"
-              alt="Nuvho"
-              width={140}
-              height={36}
-              priority
-              className="h-9 w-auto"
-            />
-          </Link>
+    <header className={`nw-header${megaOpen ? ' nw-header--open' : ''}`} onMouseLeave={scheduleClose}>
+      <div className="nw-wrap nw-header__inner">
+        <Link href="/" className="nw-header__logo" aria-label="Nuvho Knowledge Base — home">
+          <Image src="/logo-primary.svg" alt="Nuvho" width={102} height={36} priority />
+        </Link>
 
-          {/* Right nav — desktop */}
-          <nav className="hidden sm:flex items-center gap-3">
-            {!authLoaded ? null : user ? (
-              <>
-                {user.email.endsWith('@nuvho.com') && (
-                  <Link
-                    href="/admin"
-                    className="flex items-center gap-1.5 text-xs font-heading font-semibold
-                               bg-white/15 hover:bg-white/25 text-white rounded-full px-3 py-1.5
-                               transition-colors border border-white/20"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Admin
-                  </Link>
-                )}
-                <span className="text-white/90 font-body text-sm">
-                  Hello, {firstName}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="btn-outline-white text-sm py-2 px-5"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/signup"
-                  className="text-white/80 hover:text-white font-body text-sm transition-colors"
-                >
-                  Sign Up
-                </Link>
-                <Link
-                  href="/login"
-                  className="btn-outline-white text-sm py-2 px-5"
-                >
-                  Login
-                </Link>
-              </>
-            )}
-          </nav>
-
-          {/* Mobile hamburger */}
+        <nav className="nw-nav" aria-label="Primary">
           <button
-            className="sm:hidden text-white p-2"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Toggle menu"
+            type="button"
+            className={`nw-nav__item${megaOpen ? ' nw-nav__item--active' : ''}`}
+            onMouseEnter={openMega}
+            onFocus={openMega}
+            onClick={() => setMegaOpen(o => !o)}
+            aria-expanded={megaOpen}
+            aria-haspopup="true"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {mobileOpen
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
+            Topics
+            <Icon name="angle-down" size={10} />
           </button>
-        </div>
-      </div>
+          <Link href="/search" className="nw-nav__item" onMouseEnter={scheduleClose}>Search</Link>
+          {isStaff && (
+            <Link href="/admin" className="nw-nav__item" onMouseEnter={scheduleClose}>Admin</Link>
+          )}
+          <a href="https://nuvho.com" target="_blank" rel="noopener noreferrer" className="nw-nav__item" onMouseEnter={scheduleClose}>
+            nuvho.com
+          </a>
+        </nav>
 
-      {/* Mobile nav */}
-      {mobileOpen && (
-        <div className="sm:hidden bg-blue-slate/95 border-t border-white/10 px-4 py-4 space-y-3">
+        <div className="nw-header__cta">
           {user ? (
             <>
-              <span className="block text-white/90 text-sm py-1">Hello, {firstName}</span>
-              {user.email.endsWith('@nuvho.com') && (
-                <Link href="/admin" className="block text-white/80 hover:text-white text-sm py-1 font-heading font-semibold">
-                  ⚙ Admin Dashboard
-                </Link>
-              )}
-              <button
-                onClick={handleLogout}
-                className="btn-outline-white text-sm inline-block"
-              >
-                Logout
+              <span className="nw-header__user">Hello, {firstName}</span>
+              <button type="button" onClick={handleLogout} className="nv-btn nv-btn--secondary nv-btn--header">
+                Sign out
               </button>
             </>
           ) : (
             <>
-              <Link href="/signup" className="block text-white/80 hover:text-white text-sm py-1">
-                Sign Up
-              </Link>
-              <Link href="/login" className="btn-outline-white text-sm inline-block">
-                Login
-              </Link>
+              <Link href="/signup" className="nw-header__link">Create account</Link>
+              <Link href="/login" className="nv-btn nv-btn--header">Sign in</Link>
             </>
           )}
+        </div>
+
+        <button
+          type="button"
+          className="nw-header__toggle"
+          onClick={() => setDrawerOpen(o => !o)}
+          aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={drawerOpen}
+        >
+          <Icon name={drawerOpen ? 'xmark' : 'bars'} size={18} onDark />
+        </button>
+      </div>
+
+      {megaOpen && (
+        <>
+          <div className="nw-accent" aria-hidden="true" />
+          <div className="nw-mega" onMouseEnter={openMega} onMouseLeave={scheduleClose}>
+            <div className="nw-wrap nw-mega__inner">
+              <div className="nw-mega__spot">
+                <span className="nw-mega__sheet nw-mega__sheet--1" />
+                <span className="nw-mega__sheet nw-mega__sheet--2" />
+                <span className="nw-mega__sheet nw-mega__sheet--3" />
+                <span className="nw-mega__scrim" />
+                <h3>Topics</h3>
+                <p>Guides, tutorials and documentation for Smart Hoteliers.</p>
+              </div>
+              <div className="nw-mega__divider" />
+              <div className="nw-mega__cols">
+                {topics.map(t => (
+                  <Link key={t.slug} href={`/categories/${t.slug}`} className="nw-mega__item" onClick={closeAll}>
+                    <Icon name={t.icon} size={28} />
+                    <span className="nw-mega__text">
+                      <strong>
+                        {t.title}
+                        {t.isPrivate && <Icon name="lock" size={12} alt="Sign-in required" />}
+                      </strong>
+                      <span>{t.description}</span>
+                    </span>
+                  </Link>
+                ))}
+                {topics.length === 0 && (
+                  <Link href="/" className="nw-mega__item" onClick={closeAll}>
+                    <Icon name="book-open" size={28} />
+                    <span className="nw-mega__text">
+                      <strong>Browse the Knowledge Base</strong>
+                      <span>Topics appear here as they are published.</span>
+                    </span>
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {drawerOpen && (
+        <div className="nw-drawer">
+          <button
+            type="button"
+            className={`nw-drawer__row${drawerTopics ? ' nw-drawer__row--open' : ''}`}
+            onClick={() => setDrawerTopics(o => !o)}
+            aria-expanded={drawerTopics}
+          >
+            Topics
+            <Icon name="angle-down" size={12} />
+          </button>
+          {drawerTopics && (
+            <div className="nw-drawer__sub">
+              {topics.map(t => (
+                <Link key={t.slug} href={`/categories/${t.slug}`} onClick={closeAll}>
+                  <Icon name={t.icon} size={20} />
+                  {t.title}
+                  {t.isPrivate && <Icon name="lock" size={12} alt="Sign-in required" />}
+                </Link>
+              ))}
+            </div>
+          )}
+          <Link href="/search" className="nw-drawer__row" onClick={closeAll}>Search</Link>
+          {isStaff && <Link href="/admin" className="nw-drawer__row" onClick={closeAll}>Admin</Link>}
+          <a href="https://nuvho.com" target="_blank" rel="noopener noreferrer" className="nw-drawer__row">nuvho.com</a>
+
+          <div className="nw-drawer__cta">
+            {user ? (
+              <>
+                <span className="nw-header__user">Hello, {firstName}</span>
+                <button type="button" onClick={handleLogout} className="nv-btn nv-btn--secondary">Sign out</button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="nv-btn" onClick={closeAll}>Sign in</Link>
+                <Link href="/signup" className="nw-header__link" onClick={closeAll}>Create account</Link>
+              </>
+            )}
+          </div>
         </div>
       )}
     </header>

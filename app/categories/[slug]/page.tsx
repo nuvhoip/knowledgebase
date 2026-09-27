@@ -1,9 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
-import Header from '@/components/Header'
+import SiteHeader from '@/components/SiteHeader'
 import Footer from '@/components/Footer'
-import ArticleCard from '@/components/ArticleCard'
+import InnerHero from '@/components/InnerHero'
+import Icon from '@/components/Icon'
+import SubcategoryFilter from '@/components/SubcategoryFilter'
+import EmptyState from '@/components/EmptyState'
 import { getCategoryBySlug, canView } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 
@@ -40,85 +42,56 @@ export default async function CategoryPage({ params }: Props) {
   // Group visible articles by sub-category. Sub-categories (or individual articles)
   // that resolve to Private are hidden from anonymous visitors even though the
   // category itself is visible.
-  const visibleSubcategories = category.subcategories
+  const groups = category.subcategories
     .map(sub => ({
-      ...sub,
+      slug: sub.slug,
+      title: sub.title,
       articles: sub.articles.filter(a => canView(a.effectiveVisibility, hasSession)),
     }))
-    .filter(sub => canView(sub.visibility ?? category.visibility, hasSession) && sub.articles.length > 0)
+    .filter((sub, i) => canView(category.subcategories[i].visibility ?? category.visibility, hasSession) && sub.articles.length > 0)
+
+  const total = groups.reduce((n, g) => n + g.articles.length, 0)
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
+      <SiteHeader />
       <main className="flex-1">
-        {/* Breadcrumb */}
-        <div className="bg-white border-b border-platinum">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <nav className="flex items-center gap-2 text-sm font-body text-gray-400">
-              <Link href="/" className="hover:text-blue-slate transition-colors">Knowledge Base</Link>
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
-              </svg>
-              <span className="text-iron-grey font-medium">{category.title}</span>
-            </nav>
-          </div>
-        </div>
+        <InnerHero
+          title={category.title}
+          lede={category.description}
+          crumbs={[{ label: 'Knowledge Base', href: '/' }, { label: category.title }]}
+          tags={
+            <>
+              <span className="nw-tag nw-tag--lg nw-tag--dark">
+                <Icon name={category.icon} size={12} />
+                {total} {total === 1 ? 'article' : 'articles'}
+              </span>
+              {category.visibility === 'private' && (
+                <span className="nw-tag nw-tag--lg nw-tag--dark"><Icon name="lock" size={11} />Members only</span>
+              )}
+            </>
+          }
+        />
 
-        {/* Category header */}
-        <section className="bg-white border-b border-platinum pb-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-            <div className="flex items-start gap-5">
-              <div className="flex-shrink-0 w-14 h-14 bg-tropical-teal/10 rounded-2xl flex items-center justify-center">
-                <Image
-                  src={`/icons/${category.icon}`}
-                  alt={category.title}
-                  width={32}
-                  height={32}
-                  className="icon-primary"
-                />
-              </div>
-              <div>
-                <h1 className="font-heading text-2xl font-bold text-iron-grey">{category.title}</h1>
-                <p className="font-body text-gray-500 mt-1 max-w-2xl">{category.description}</p>
-                <span className="inline-block mt-2 text-sm text-steel-blue font-body">
-                  {category.articleCount} articles
-                </span>
-              </div>
+        <section className="nw-section nw-section--tight">
+          <div className="nw-wrap">
+            {groups.length === 0 ? (
+              <EmptyState
+                icon="folder-open"
+                title="No articles here yet"
+                body="This topic is set up but nothing has been published under it. Check back soon."
+                action={<Link href="/#topics" className="nv-btn nv-btn--secondary nv-btn--lg">Browse other topics</Link>}
+              />
+            ) : (
+              <SubcategoryFilter groups={groups} category={{ title: category.title, icon: category.icon }} />
+            )}
+
+            <div className="mt-16">
+              <Link href="/#topics" className="nw-link">
+                <Icon name="arrow-left" size={14} />
+                Back to all topics
+              </Link>
             </div>
-          </div>
-        </section>
-
-        {/* Articles list — grouped by sub-category */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          {visibleSubcategories.length === 0 ? (
-            <p className="font-body text-sm text-gray-400 text-center py-10">No articles available yet.</p>
-          ) : (
-            <div className="space-y-10">
-              {visibleSubcategories.map(sub => (
-                <div key={sub.slug}>
-                  <h2 className="font-heading text-base font-semibold text-iron-grey mb-4">{sub.title}</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {sub.articles.map(article => (
-                      <ArticleCard key={article.slug} article={article} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Back link */}
-          <div className="mt-10">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-sm text-blue-slate hover:text-steel-blue
-                         font-body transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 18l-6-6 6-6" />
-              </svg>
-              Back to all topics
-            </Link>
           </div>
         </section>
       </main>

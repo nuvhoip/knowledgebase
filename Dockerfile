@@ -26,6 +26,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Editor image uploads — docker-compose.yml mounts a named volume here (lib/uploads.ts)
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+ENV UPLOADS_DIR=/app/uploads
+
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000

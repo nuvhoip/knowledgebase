@@ -1,7 +1,10 @@
 // Run once to create the users table:
 //   node scripts/run-migration.js
 
+// .env.local wins if present, otherwise fall back to .env (dotenv never overrides
+// an already-set var, so the first call takes precedence).
 require('dotenv').config({ path: '.env.local' })
+require('dotenv').config()
 const { Pool } = require('pg')
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })

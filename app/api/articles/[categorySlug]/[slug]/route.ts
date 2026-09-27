@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { sanitizeArticleHtml } from '@/lib/sanitize'
 
 interface RouteParams {
   params: { categorySlug: string; slug: string }
@@ -66,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       [
         title.trim(),
         description.trim(),
-        content ?? null,
+        sanitizeArticleHtml(content),
         Number(readTime) || 5,
         subcategorySlug || null,
         visibility === undefined,
