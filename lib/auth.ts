@@ -65,3 +65,11 @@ export async function getSessionFromRequest(req: NextRequest): Promise<SessionPa
   if (!token) return null
   return verifyToken(token)
 }
+
+// ─── Staff accounts ───────────────────────────────────────────────────────────
+
+/** Staff emails get admin access (app/admin/page.tsx), so they may only be created via Microsoft. */
+export function isStaffEmail(email: string): boolean {
+  return email.toLowerCase().trim().endsWith('@nuvho.com')
+}
+
