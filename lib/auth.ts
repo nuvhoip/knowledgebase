@@ -73,3 +73,16 @@ export function isStaffEmail(email: string): boolean {
   return email.toLowerCase().trim().endsWith('@nuvho.com')
 }
 
+// ─── Temporary passwords ──────────────────────────────────────────────────────
+
+const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*'
+
+/** A random 16-character password for admin-initiated resets. Shown once; never stored. */
+export function generateTempPassword(length = 16): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length))
+  let out = ''
+  for (let i = 0; i < length; i++) {
+    out += TEMP_PASSWORD_CHARS[bytes[i] % TEMP_PASSWORD_CHARS.length]
+  }
+  return out
+}

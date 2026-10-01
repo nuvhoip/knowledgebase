@@ -468,6 +468,15 @@
 .na-input:focus, .na-select:focus, .na-textarea:focus { border-color: var(--nv-blue-slate); box-shadow: inset 0 0 0 .5px var(--nv-blue-slate); }  /* = 1.5px, no layout shift */
 .na-input:disabled, .na-select:disabled, .na-textarea:disabled { background: var(--nv-surface-disabled); color: var(--nv-text-disabled); cursor: not-allowed; }
 .na-textarea { height: 96px; padding: 12px 16px; resize: vertical; line-height: 1.5; }
+.na-password-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--nv-surface-tint); border: 1px solid var(--nv-border); border-radius: 6px;
+  padding: 12px 16px;
+}
+.na-password-box code {
+  font: 600 15px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--nv-text-body); letter-spacing: .02em; user-select: all;
+}
 .na-textarea--code { font: 400 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 160px; height: auto; }
 .na-select { appearance: none; padding-right: 40px; cursor: pointer; background-image: url('/icons/angle-down.svg'); background-repeat: no-repeat; background-position: right 14px center; background-size: 14px 14px; }
 .na-help { font: 300 11px/1.5 var(--nv-font-body); color: var(--nv-text-muted); }
@@ -735,6 +744,7 @@
 .nv-btn[aria-busy="true"] { cursor: progress; }
 .nv-btn--ondark[aria-busy="true"]:disabled    { background: var(--nv-white); color: var(--nv-blue-slate); }
 .nv-btn--secondary[aria-busy="true"]:disabled { background: transparent; color: var(--nv-blue-slate); }
+.nv-btn--ghost[aria-busy="true"]:disabled     { background: transparent; color: var(--nv-blue-slate); }
 .nw-hero__popular button:disabled { opacity: .6; cursor: progress; }
 
 /* Search-as-you-type: spinner in the field + suggestion list under it */
