@@ -24,6 +24,16 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://knowledge.nuvho.com'),
   title: 'Nuvho Knowledge Base',
   description: 'Find answers to your Nuvho questions. Guides, tutorials and documentation for Smart Hoteliers.',
+  // Steel Blue favicon from the 2026 brand set (nuvho-favicons.zip). Browsers that
+  // support SVG favicons use the vector; the PNGs cover the rest and home screens.
+  icons: {
+    icon: [
+      { url: '/favicon/nuvho-favicon-steel-blue.svg', type: 'image/svg+xml' },
+      { url: '/favicon/nuvho-favicon-steel-blue-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon/nuvho-favicon-steel-blue-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: { url: '/favicon/nuvho-favicon-steel-blue-180.png', sizes: '180x180', type: 'image/png' },
+  },
   openGraph: {
     title: 'Nuvho Knowledge Base',
     description: 'Find answers to your Nuvho questions.',

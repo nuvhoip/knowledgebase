@@ -15,7 +15,7 @@
    next/font (app/layout.tsx) — there is NO runtime Google Fonts request.
 
    Prefixes:  .nv-*  primitives (buttons, icons)   .nw-*  marketing/site sections
-              .na-*  admin (browser-app law §3–§9)  .nv-auth*  login/signup (§11)
+              .na-*  admin (browser-app law §3–§9)  .nv-auth*  login/signup (onboarding UI)
    Every value marked "not in Figma" is a proposal, not a locked value.
    ========================================================================== */
 
@@ -468,6 +468,15 @@
 .na-input:focus, .na-select:focus, .na-textarea:focus { border-color: var(--nv-blue-slate); box-shadow: inset 0 0 0 .5px var(--nv-blue-slate); }  /* = 1.5px, no layout shift */
 .na-input:disabled, .na-select:disabled, .na-textarea:disabled { background: var(--nv-surface-disabled); color: var(--nv-text-disabled); cursor: not-allowed; }
 .na-textarea { height: 96px; padding: 12px 16px; resize: vertical; line-height: 1.5; }
+.na-password-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--nv-surface-tint); border: 1px solid var(--nv-border); border-radius: 6px;
+  padding: 12px 16px;
+}
+.na-password-box code {
+  font: 600 15px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--nv-text-body); letter-spacing: .02em; user-select: all;
+}
 .na-textarea--code { font: 400 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 160px; height: auto; }
 .na-select { appearance: none; padding-right: 40px; cursor: pointer; background-image: url('/icons/angle-down.svg'); background-repeat: no-repeat; background-position: right 14px center; background-size: 14px 14px; }
 .na-help { font: 300 11px/1.5 var(--nv-font-body); color: var(--nv-text-muted); }
@@ -574,229 +583,84 @@
 
 
 /* ============================================================================
-   AUTH PAGES (/login, /signup) — nuvho-web-design v1.0.0 §11 Login
+   AUTH PAGES (/login, /signup, /auth/callback) — same UI as nuvho-onboarding-ui
    ----------------------------------------------------------------------------
-   Unchanged from the prior handover: every .nv-auth* class below is used ONLY
-   by the Login and Signup pages, which were already aligned to §11.
+   Ported from onboarding's src/pages/Login.jsx so staff see one sign-in across
+   Nuvho apps: a centred 448px column on #F5F8F9 — logo 44 → white card (r16,
+   1px #B8D8E0, p28) → "Staff & Admin" divider → Sign in with Microsoft pill →
+   copyright. Each value is onboarding's Tailwind class translated 1:1 (noted).
    ========================================================================== */
-
-/* --- Shell ---------------------------------------------------------------- */
 .nv-auth {
-  display: flex;
-  min-height: 100vh;
-  background: var(--nv-surface-page);
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;   /* min-h-screen flex items-center justify-center */
+  padding: 48px 16px; box-sizing: border-box; background: #F5F8F9;                    /* px-4 bg-nuvho-bg */
 }
+.nv-auth__col { width: 100%; max-width: 448px; }                                      /* w-full max-w-md */
+.nv-auth__col > * + * { margin-top: 20px; }                                           /* space-y-5 */
 
-/* --- Left 50%: brand panel (11, hidden < 900px) --------------------------- */
-.nv-auth__brand {
-  position: relative;
-  flex: 0 0 50%;
-  width: 50%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 64px 72px;
-  background: var(--nv-grad-ground);
-}
+.nv-auth__logo { display: block; margin-bottom: 32px; }                               /* text-center mb-8 */
+.nv-auth__logo img { display: block; height: 44px; width: auto; margin: 0 auto; }
 
-/* Signature device — radius law 4: r = 0.24 of the short edge, focal 0.30,
-   stacked sheets offset by no less than one full radius, 1.5px white @.45
-   leading edge. Anchored upper-right. One focal per surface, never two. */
-.nv-auth__sheet { position: absolute; pointer-events: none; }
-.nv-auth__sheet--a {              /* stack sheet - 190 short edge -> r 46 */
-  width: 190px; height: 190px; border-radius: 46px;
-  top: -40px; right: 104px;
-  background: var(--nv-grad-lift);
-  opacity: .14;
-}
-.nv-auth__sheet--b {              /* stack sheet - offset 46 = exactly 1 r from A */
-  width: 190px; height: 190px; border-radius: 46px;
-  top: 6px; right: 58px;
-  background: var(--nv-grad-lift);
-  opacity: .20;
-}
-.nv-auth__sheet--focal {          /* the one bright form - 200 -> r 60 (0.30) */
-  width: 200px; height: 200px; border-radius: 60px;
-  top: 52px; right: -46px;
-  background: var(--nv-grad-focal);
-  border: 1.5px solid rgba(255,255,255,.45);   /* leading edge - radius law 4 */
-  opacity: .22;
-}
+.nv-auth__card { background: #FFFFFF; border: 1px solid #B8D8E0; border-radius: 16px; padding: 28px; }   /* rounded-2xl p-7 */
+.nv-auth__title { margin: 0 0 4px; font: 600 14px/20px var(--nv-font-display); color: #28687F; }        /* font-display font-semibold text-sm text-nuvho-teal mb-1 */
+.nv-auth__lede  { margin: 0 0 20px; font: 400 12px/16px var(--nv-font-body); color: #9AACAD; }          /* text-xs text-nuvho-hint mb-5 */
 
-.nv-auth__brand-inner { position: relative; z-index: 1; }
-.nv-auth__brand-logo  { width: 200px; height: auto; }      /* Logo / White 200 */
-
-.nv-auth__hero {
-  margin-top: 48px;
-  font-family: var(--font-comfortaa), sans-serif;
-  font-weight: 600;
-  font-size: 42px;
-  line-height: 1.15;
-  color: var(--nv-white);
-}
-
-.nv-auth__sub {
-  margin-top: 20px;
-  max-width: 420px;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  color: rgba(255,255,255,.75);   /* 11 states 75% for the supporting line */
-}
-
-.nv-auth__brand-footer {
-  position: absolute;
-  left: 72px;
-  bottom: 40px;
-  z-index: 1;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 12px;
-  color: rgba(255,255,255,.45);   /* 11 footer: 12 white @45% */
-}
-
-/* --- Right 50%: form panel ------------------------------------------------ */
-.nv-auth__panel {
-  flex: 1 1 50%;
-  width: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  background: var(--nv-surface-page);
-}
-
-.nv-auth__mobile-logo     { display: none; margin-bottom: 28px; }
-.nv-auth__mobile-logo img { width: 44px; height: auto; }   /* Logo / Primary 44 */
-
-/* Card — 7: r14, 1px hairline, padding 40 36, NO SHADOW */
-.nv-auth__card {
-  width: 400px;
-  max-width: 100%;
-  background: var(--nv-surface-card);
-  border: 1px solid var(--nv-border-hair);
-  border-radius: 14px;
-  padding: 40px 36px;
-}
-
-.nv-auth__title {
-  font-family: var(--font-comfortaa), sans-serif;
-  font-weight: 500;
-  font-size: 26px;
-  line-height: 1.2;
-  color: var(--nv-text-heading);
-}
-
-.nv-auth__lede {
-  margin-top: 6px;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--nv-text-muted);
-}
-
-/* --- Fields — 5 Figma field ----------------------------------------------- */
-.nv-auth__form    { margin-top: 28px; }
-.nv-auth__group + .nv-auth__group { margin-top: 20px; }
-.nv-auth__actions { margin-top: 28px; }
-
-.nv-auth__label {
-  display: block;
-  margin-bottom: 6px;
-  font-family: var(--font-raleway), sans-serif;
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--nv-text-body);
-}
-.nv-auth__req { color: var(--nv-error); }
-
+.nv-auth__form > * + * { margin-top: 16px; }                                          /* space-y-4 */
+.nv-auth__label { display: block; margin-bottom: 6px; font: 500 12px/16px var(--nv-font-body); color: #5E6B6C; }   /* text-xs font-medium text-nuvho-muted mb-1.5 */
 .nv-auth__field {
-  width: 100%;
-  height: 44px;
-  padding: 0 16px;
-  background: var(--nv-white);
-  border: 1px solid var(--nv-border);
-  border-radius: 6px;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 14px;
-  color: var(--nv-text-body);
-  outline: none;
-  transition: border-color .15s ease;
+  width: 100%; box-sizing: border-box; padding: 10px 12px;                            /* px-3 py-2.5 */
+  border: 1px solid #B8D8E0; border-radius: 8px; background: #F5F8F9;                 /* rounded-lg bg-nuvho-bg */
+  font: 400 14px/20px var(--nv-font-body); color: #414B4C; outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
-.nv-auth__field::placeholder { color: var(--nv-text-meta); }
-.nv-auth__field:focus        { border: 1.5px solid var(--nv-blue-slate); }  /* no ring - 5 */
-.nv-auth__field:disabled     { background: var(--nv-surface-disabled); }
+.nv-auth__field::placeholder { color: #9CA3AF; }
+.nv-auth__field:focus { border-color: transparent; box-shadow: 0 0 0 2px #6BA1BF; }   /* focus:ring-2 focus:ring-nuvho-blue focus:border-transparent */
+.nv-auth__help { margin-top: 6px; font: 400 11px/16px var(--nv-font-body); color: #9AACAD; }
 
-.nv-auth__help {
-  margin-top: 6px;
-  font-family: var(--font-raleway), sans-serif;
-  font-weight: 300;
-  font-size: 11px;
-  color: var(--nv-text-muted);
+.nv-auth__error {                                                                     /* text-xs text-cherry-600 bg-cherry-50 border-cherry-200 rounded-lg px-3 py-2.5 */
+  margin-bottom: 0; padding: 10px 12px; border: 1px solid #F3C7D6; border-radius: 8px; background: #FDF2F5;
+  font: 400 12px/16px var(--nv-font-body); color: #7A1F3A;
 }
+.nv-auth__error a { color: inherit; font-weight: 600; text-decoration: underline; }
 
-/* --- Error banner — 5 ----------------------------------------------------- */
-.nv-auth__error {
-  margin-top: 24px;
-  background: rgba(152,38,73,.07);
-  border: 1px solid rgba(152,38,73,.2);
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 13px;
-  color: var(--nv-error);
+.nv-auth__btn {                                                                       /* w-full bg-nuvho-teal text-white py-2.5 rounded-full text-sm font-display font-semibold */
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 16px; border: 0; border-radius: 999px; background: #28687F; color: #FFFFFF;
+  font: 600 14px/20px var(--nv-font-display); cursor: pointer; transition: background-color .15s ease;
 }
+.nv-auth__btn:hover:not(:disabled) { background: #6BA1BF; }                           /* hover:bg-nuvho-blue */
+.nv-auth__btn:disabled { opacity: .5; cursor: not-allowed; }                          /* disabled:opacity-50 */
+.nv-auth__btn[aria-busy="true"] { cursor: progress; }
 
-/* --- Button — 4 Figma Button, no exceptions ------------------------------- */
-.nv-auth__btn {
-  width: 100%;
-  height: 40px;
-  padding: 0 24px;
-  border: none;
-  border-radius: 999px;
-  background: var(--nv-blue-slate);
-  color: var(--nv-white);
-  font-family: var(--font-raleway), sans-serif;
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background-color .15s ease;   /* recolour only - no lift, no shadow */
-}
-.nv-auth__btn:hover:not(:disabled) { background: var(--nv-blue-500); }
-.nv-auth__btn:disabled {
-  background: var(--nv-surface-disabled-fill);
-  color: var(--nv-text-disabled);
-  cursor: not-allowed;
-}
-
-/* --- Foot link ------------------------------------------------------------ */
-.nv-auth__foot {
-  margin-top: 24px;
-  text-align: center;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 13px;
-  color: var(--nv-text-muted);
-}
-.nv-auth__foot a       { color: var(--nv-blue-slate); font-weight: 600; }
+.nv-auth__foot { margin: 16px 0 0; text-align: center; font: 400 12px/16px var(--nv-font-body); color: #9AACAD; }
+.nv-auth__foot a { color: #28687F; font-weight: 600; }
 .nv-auth__foot a:hover { text-decoration: underline; }
 
-.nv-auth__panel-footer {
-  display: none;
-  margin-top: 32px;
-  font-family: var(--font-raleway), sans-serif;
-  font-size: 11px;
-  color: var(--nv-text-muted);
+/* "Staff & Admin" — hairline with the label sitting on the page colour */
+.nv-auth__divider { position: relative; display: flex; justify-content: center; }
+.nv-auth__divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #B8D8E0; }
+.nv-auth__divider span {                                                              /* bg-nuvho-bg px-3 text-[11px] font-display text-nuvho-hint uppercase tracking-widest */
+  position: relative; padding: 0 12px; background: #F5F8F9;
+  font: 400 11px/16px var(--nv-font-display); color: #9AACAD; text-transform: uppercase; letter-spacing: .1em;
 }
 
-/* --- Responsive — 14: 900px is the ONLY approved breakpoint --------------- */
-@media (max-width: 900px) {
-  .nv-auth__brand        { display: none; }
-  .nv-auth__panel        { flex-basis: 100%; width: 100%; padding: 40px 24px; }
-  .nv-auth__mobile-logo  { display: block; }
-  .nv-auth__panel-footer { display: block; }
+.nv-auth__ms {                                                                        /* w-full flex gap-3 bg-white border rounded-full px-4 py-3 text-sm font-display font-semibold text-nuvho-charcoal */
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 12px 16px; border: 1px solid #B8D8E0; border-radius: 999px; background: #FFFFFF;
+  font: 600 14px/20px var(--nv-font-display); color: #414B4C; cursor: pointer; transition: background-color .15s ease;
 }
+.nv-auth__ms:hover:not(:disabled) { background: #EDF4F6; }                            /* hover:bg-nuvho-tint */
+.nv-auth__ms:disabled { opacity: .5; cursor: not-allowed; }
+.nv-auth__ms[aria-busy="true"] { opacity: 1; cursor: progress; }
+.nv-auth__ms svg { flex: none; width: 20px; height: 20px; }
 
+.nv-auth__copy { padding-top: 8px; text-align: center; font: 400 11px/16px var(--nv-font-body); color: #9AACAD; }   /* text-[11px] text-nuvho-hint pt-2 */
+
+/* Microsoft popup redirect page (onboarding AzureCallback.jsx) and the /login route loader */
+.nv-auth__callback {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 24px; background: #F5F8F9; text-align: center;
+  font: 400 14px/20px var(--nv-font-display); color: #9AACAD;                        /* font-display text-nuvho-hint text-sm */
+}
 
 /* ============================================================================
    ADDENDUM 2026-09-22 — photo hero + reader card (article page revision)
@@ -871,3 +735,66 @@
 .na-upload .na-hero-preview .na-input { flex: 1 1 240px; width: auto; }
 .na-upload .na-help { display: block; margin-top: 6px; }
 .na-upload .na-error { display: block; margin-top: 8px; }
+
+/* ============================================================================
+   ADDENDUM 2026-10-01 — Microsoft sign-in, fuzzy search suggestions, loaders
+   ========================================================================== */
+
+/* Busy buttons keep their variant colours (the generic :disabled grey would hide the spinner) */
+.nv-btn[aria-busy="true"] { cursor: progress; }
+.nv-btn--ondark[aria-busy="true"]:disabled    { background: var(--nv-white); color: var(--nv-blue-slate); }
+.nv-btn--secondary[aria-busy="true"]:disabled { background: transparent; color: var(--nv-blue-slate); }
+.nv-btn--ghost[aria-busy="true"]:disabled     { background: transparent; color: var(--nv-blue-slate); }
+.nw-hero__popular button:disabled { opacity: .6; cursor: progress; }
+
+/* Search-as-you-type: spinner in the field + suggestion list under it */
+.nw-search__input { padding-right: 48px; }
+.nw-search__spinner { position: absolute; right: 20px; top: 28px; transform: translateY(-50%); display: flex; }
+.nw-suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30;
+  margin: 0; padding: 6px; list-style: none; box-sizing: border-box;
+  background: var(--nv-white); border: 1px solid var(--nv-border-hair); border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(40,64,76,.18); text-align: left;
+}
+.nw-suggest__item { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
+.nw-suggest__item.is-active { background: var(--nv-surface-tint); }
+.nw-suggest__title { font: 500 15px/1.4 var(--nv-font-display); color: var(--nv-text-heading); }
+.nw-suggest__meta  { display: inline-flex; align-items: center; gap: 4px; font: 400 12px/1.4 var(--nv-font-body); color: var(--nv-text-meta); }
+.nw-suggest__empty { padding: 10px 14px; font: 400 13px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
+.nw-suggest__all {
+  display: flex; align-items: center; gap: 8px; margin-top: 4px; padding: 10px 14px;
+  border-top: 1px solid var(--nv-border-band); font: 600 13px/1.4 var(--nv-font-body); color: var(--nv-blue-slate); cursor: pointer;
+}
+.nw-suggest__all:hover { background: var(--nv-surface-tint); border-radius: 0 0 10px 10px; }
+.nw-suggest__all .nv-ic { filter: none; position: static; transform: none; opacity: 1; }
+.nw-suggest .nv-ic { position: static; transform: none; filter: none; opacity: 1; }
+
+/* Skeletons — shimmer placeholders shaped like the content they stand in for */
+.nv-skel {
+  display: block; border-radius: 6px;
+  background: linear-gradient(90deg, #E3EDF3 0%, #EEF4F5 50%, #E3EDF3 100%) 0 0 / 200% 100%;
+  animation: nv-skel 1.4s ease-in-out infinite;
+}
+.nv-skel--ondark { background-image: linear-gradient(90deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.26) 50%, rgba(255,255,255,.14) 100%); }
+.nv-skel--tag   { width: 88px; height: 22px; border-radius: 999px; }
+.nv-skel--title { width: 80%; height: 20px; }
+.nv-skel--line  { width: 100%; height: 12px; }
+.nv-skel--short { width: 60%; }
+.nv-skel--para  { height: 14px; margin-bottom: 14px; }
+.nv-skel--crumb { width: 180px; height: 14px; margin-bottom: 28px; }
+.nv-skel--h1    { width: min(520px, 90%); height: 44px; border-radius: 10px; }
+.nv-skel--copy  { width: min(420px, 75%); height: 18px; margin-top: 20px; }
+.nw-skel-tile .nw-tile__slot { border-radius: 0; }
+@keyframes nv-skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-skel { animation: none; }
+  .nv-spin { animation-duration: 1.6s; }
+}
+
+/* Hero no longer clips (the suggestions list must overhang the next section); its
+   decorative layers clip inside .nw-hero__bg instead. Above the following sections,
+   below the header (z 40) so the mega-menu still covers it. */
+.nw-hero { overflow: visible; z-index: 2; }
+.nw-hero:has(.nw-suggest) { z-index: 35; }
+.nw-hero__bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
