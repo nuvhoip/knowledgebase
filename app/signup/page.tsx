@@ -12,6 +12,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [useMicrosoft, setUseMicrosoft] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
+  const busy = loading || redirecting
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,21 +43,57 @@ export default function SignupPage() {
     }
   }
 
-  // Same layout as the Login page (nuvho-onboarding-ui Login.jsx): logo → card → copyright
   return (
     <div className="nv-auth">
-      <main className="nv-auth__col">
-        <Link href="/" className="nv-auth__logo">
-          <Image src="/logo-primary.svg" alt="Nuvho" width={125} height={44} priority />
+      {/* Brand panel — split screen, hidden below 900px */}
+      <aside className="nv-auth__brand">
+        <div className="nv-auth__sheet nv-auth__sheet--a" />
+        <div className="nv-auth__sheet nv-auth__sheet--b" />
+        <div className="nv-auth__sheet nv-auth__sheet--focal" />
+
+        <div className="nv-auth__brand-inner">
+          <Link href="/" className="inline-block">
+            <Image
+              src="/logo-white.svg"
+              alt="Nuvho"
+              width={200}
+              height={54}
+              className="nv-auth__brand-logo"
+              priority
+            />
+          </Link>
+          <h2 className="nv-auth__hero">Start with the answer.</h2>
+          <p className="nv-auth__sub">
+            Create an account to save what matters, follow the guides that apply to
+            your property and keep your team on the same page.
+          </p>
+        </div>
+
+        <p className="nv-auth__brand-footer">&copy; Nuvho Holdings Pty Ltd</p>
+      </aside>
+
+      {/* Form panel */}
+      <main className="nv-auth__panel">
+        <Link href="/" className="nv-auth__mobile-logo">
+          <Image src="/logo-primary.svg" alt="Nuvho" width={102} height={36} priority />
         </Link>
 
         <div className="nv-auth__card">
-          <h1 className="nv-auth__title">Create Account</h1>
-          <p className="nv-auth__lede">Join the Nuvho Knowledge Base</p>
+          <h1 className="nv-auth__title">Create an account</h1>
+          <p className="nv-auth__lede">Join the Nuvho Knowledge Base.</p>
+
+          {error && (
+            <div className="nv-auth__error" role="alert">
+              {error}
+              {useMicrosoft && <> <Link href="/login">Sign in with Microsoft</Link></>}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="nv-auth__form">
-            <div>
-              <label className="nv-auth__label" htmlFor="name">Full name</label>
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="name">
+                Full name <span className="nv-auth__req">*</span>
+              </label>
               <input
                 id="name"
                 type="text"
@@ -68,8 +105,11 @@ export default function SignupPage() {
                 placeholder="Jane Smith"
               />
             </div>
-            <div>
-              <label className="nv-auth__label" htmlFor="email">Email</label>
+
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="email">
+                Email address <span className="nv-auth__req">*</span>
+              </label>
               <input
                 id="email"
                 type="email"
@@ -81,8 +121,11 @@ export default function SignupPage() {
                 placeholder="you@company.com"
               />
             </div>
-            <div>
-              <label className="nv-auth__label" htmlFor="password">Password</label>
+
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="password">
+                Password <span className="nv-auth__req">*</span>
+              </label>
               <input
                 id="password"
                 type="password"
@@ -92,20 +135,17 @@ export default function SignupPage() {
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 className="nv-auth__field"
-                placeholder="••••••••"
+                placeholder="Create a password"
               />
               <p className="nv-auth__help">Use at least 8 characters.</p>
             </div>
-            {error && (
-              <p className="nv-auth__error" role="alert">
-                {error}
-                {useMicrosoft && <> <Link href="/login">Sign in with Microsoft</Link></>}
-              </p>
-            )}
-            <button type="submit" disabled={loading || redirecting} className="nv-auth__btn" aria-busy={loading || redirecting}>
-              {(loading || redirecting) && <span className="nv-spin nv-spin--sm nv-spin--w" aria-hidden="true" />}
-              {loading || redirecting ? 'Creating account…' : 'Create Account'}
-            </button>
+
+            <div className="nv-auth__actions">
+              <button type="submit" disabled={busy} className="nv-auth__btn" aria-busy={busy}>
+                {busy && <span className="nv-spin nv-spin--sm nv-spin--w" aria-hidden="true" />}
+                {busy ? 'Creating account…' : 'Create account'}
+              </button>
+            </div>
           </form>
 
           <p className="nv-auth__foot">
@@ -113,7 +153,7 @@ export default function SignupPage() {
           </p>
         </div>
 
-        <p className="nv-auth__copy">&copy; Nuvho Systems Pty Ltd</p>
+        <p className="nv-auth__panel-footer">&copy; Nuvho Holdings Pty Ltd</p>
       </main>
     </div>
   )

@@ -123,7 +123,7 @@ export default function Header({ user, topics }: Props) {
           aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={drawerOpen}
         >
-          <Icon name={drawerOpen ? 'xmark' : 'bars'} size={18} onDark />
+          <Icon name={drawerOpen ? 'xmark' : 'bars'} size={24} />
         </button>
       </div>
 

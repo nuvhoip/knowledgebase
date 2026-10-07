@@ -11,11 +11,11 @@
 </g>
 <defs>
 <filter id="blur" x="170" y="-140" width="520" height="460" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="20"/></filter>
-<linearGradient id="ground" x1="0" y1="512" x2="512" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0.145" stop-color="#6BA1BF"/><stop offset="0.557" stop-color="#6BA1BF"/><stop offset="0.855" stop-color="#7FADC6"/></linearGradient>
+<linearGradient id="ground" x1="0" y1="512" x2="512" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0.145" stop-color="#28687F"/><stop offset="0.557" stop-color="#28687F"/><stop offset="0.855" stop-color="#3E7F96"/></linearGradient>
 <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(430 90) scale(220 190)">
-<stop stop-color="#BDD5D9" stop-opacity="0.5"/><stop offset="0.5" stop-color="#96BACE" stop-opacity="0.18"/><stop offset="1" stop-color="#7FADC6" stop-opacity="0"/></radialGradient>
-<linearGradient id="sheet1" x1="576" y1="-84" x2="246.147" y2="255.849" gradientUnits="userSpaceOnUse"><stop stop-color="#A4CACE" stop-opacity="0.2"/><stop offset="1" stop-color="#7FADC6" stop-opacity="0"/></linearGradient>
-<linearGradient id="sheet2" x1="582" y1="16" x2="342.2" y2="265.792" gradientUnits="userSpaceOnUse"><stop stop-color="#BDD5D9" stop-opacity="0.26"/><stop offset="1" stop-color="#96BACE" stop-opacity="0.03"/></linearGradient>
+<stop stop-color="#AAD2D6" stop-opacity="0.5"/><stop offset="0.5" stop-color="#6BA1BF" stop-opacity="0.18"/><stop offset="1" stop-color="#3E7F96" stop-opacity="0"/></radialGradient>
+<linearGradient id="sheet1" x1="576" y1="-84" x2="246.147" y2="255.849" gradientUnits="userSpaceOnUse"><stop stop-color="#80B9BF" stop-opacity="0.2"/><stop offset="1" stop-color="#3E7F96" stop-opacity="0"/></linearGradient>
+<linearGradient id="sheet2" x1="582" y1="16" x2="342.2" y2="265.792" gradientUnits="userSpaceOnUse"><stop stop-color="#AAD2D6" stop-opacity="0.26"/><stop offset="1" stop-color="#6BA1BF" stop-opacity="0.03"/></linearGradient>
 <clipPath id="c0"><rect width="512" height="512" fill="white"/></clipPath>
 <clipPath id="c1"><rect width="512" height="512" rx="256" fill="white"/></clipPath>
 </defs>

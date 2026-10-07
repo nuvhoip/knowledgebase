@@ -7,15 +7,17 @@
    ----------------------------------------------------------------------------
    Source of truth for LAYOUT: Figma "Nuvho Website Redesign — Wireframes v1.0"
    (tfzYTVq6WUGyxCwv2xBTPq), page "Top Pages – AU & Everywhere else".
-   Source of truth for TOKENS / TYPE / ICONS / COPYRIGHT: nuvho-brand v3 and
-   nuvho-web-design v1.0.0. Where the two disagree, layout follows the wireframe
-   and tokens follow the brand law (decision 2026-09-22).
+   Source of truth for TOKENS / TYPE / ICONS / COPYRIGHT: nuvho-brand v4.0.0 and
+   nuvho-web-design v2.0.0 (Brand Book 2026). Where the two disagree, layout follows
+   the wireframe and tokens follow the brand law (decision 2026-09-22).
+   Audience: Client — Blue Slate lead (decision 2026-10-07). One Blend spotlight per
+   page with the 120px house curve: the contact band on Home.
 
-   Fonts: Comfortaa + Raleway are downloaded at build time and self-hosted by
-   next/font (app/layout.tsx) — there is NO runtime Google Fonts request.
+   Fonts: the brand's own Comfortaa + Raleway variable files, self-hosted by
+   next/font/local (app/fonts, app/layout.tsx) — no Google Fonts at all.
 
    Prefixes:  .nv-*  primitives (buttons, icons)   .nw-*  marketing/site sections
-              .na-*  admin (browser-app law §3–§9)  .nv-auth*  login/signup (onboarding UI)
+              .na-*  admin (app component law, Ch.04)  .nv-auth*  login/signup (§11)
    Every value marked "not in Figma" is a proposal, not a locked value.
    ========================================================================== */
 
@@ -134,12 +136,11 @@
 .nv-btn--ondark-alt { background: transparent; color: var(--nv-white); border: 1.25px solid var(--nv-white); }
 .nv-btn--ondark-alt:hover:not(:disabled) { background: rgba(255,255,255,.12); }
 
-/* web sizes — website-anatomy §6 */
+/* web sizes — nuvho-web-design v2 §3 web button set (h48 / 54 / 56); apps keep the h40 base */
 .nv-btn--sm     { height: 32px; padding: 0 16px; font-size: 13px; gap: 8px; }  /* compact, table rows — extension, flagged */
-.nv-btn--lg     { height: 48px; padding: 0 28px; font-size: 15px; }             /* in-section secondary 48 */
+.nv-btn--lg     { height: 48px; padding: 0 32px; font-size: 16px; }             /* in-section web base 48 */
 .nv-btn--header { height: 54px; padding: 0 32px; font-size: 15.5px; }           /* header CTA */
-.nv-btn--hero   { height: 57px; padding: 0 32px; font-size: 16px; }             /* onDark 57 */
-.nv-btn--hero.nv-btn--ondark-alt { height: 55px; }                              /* onDarkAlt 55 */
+.nv-btn--hero   { height: 56px; padding: 0 32px; font-size: 16px; }             /* hero / band 56 */
 .nv-btn--sm .nv-ic { width: 14px; height: 14px; }
 
 /* --- Spinner (chrome, not iconography) --- */
@@ -181,7 +182,7 @@
 .nw-header__user { font: 500 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); white-space: nowrap; }
 .nw-header__link { font: 600 15.5px/1.4 var(--nv-font-body); color: var(--nv-text-body); text-decoration: none; white-space: nowrap; }
 .nw-header__link:hover { color: var(--nv-blue-slate); }
-.nw-header__toggle { display: none; width: 36px; height: 36px; border-radius: 6px; background: var(--nv-blue-slate); border: 0; margin-left: auto; place-items: center; cursor: pointer; }
+.nw-header__toggle { display: none; width: 44px; height: 44px; border-radius: 6px; background: transparent; border: 0; margin-left: auto; margin-right: -10px; place-items: center; cursor: pointer; }   /* 44×44 burger — responsive.md */
 .nw-accent { position: absolute; left: 0; right: 0; top: 85px; height: 3px; background: var(--nv-grad-accent); }
 
 /* --- Mega-menu (Figma 642:2 — Resources open state) --- */
@@ -196,12 +197,15 @@
 .nw-mega__spot h3 { position: relative; font: 500 30px/1.2 var(--nv-font-display); color: var(--nv-white); margin: 0 0 16px; }
 .nw-mega__spot p  { position: relative; font: 600 15.5px/1.65 var(--nv-font-body); color: var(--nv-text-on-dark-2); max-width: 212px; margin: 0; }
 .nw-mega__divider { background: var(--nv-border-band); height: 300px; }
-.nw-mega__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; padding-top: 26px; align-content: start; }
-.nw-mega__item { display: grid; grid-template-columns: 28px 1fr; gap: 0 20px; align-items: start; min-height: 96px; text-decoration: none; }
-.nw-mega__item .nv-ic { margin-top: 2px; }
+.nw-mega__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; padding-top: 12px; align-content: start; }   /* 26 − the links' 14px hover padding */
+.nw-mega__item { display: grid; grid-template-columns: 28px 1fr; gap: 0 20px; align-items: start; min-height: 96px; box-sizing: border-box; padding: 14px 16px; margin: 0 -16px; border-radius: 16px; text-decoration: none; transition: background-color var(--nv-dur) var(--nv-ease); }
+.nw-mega__item .nv-ic { margin-top: 2px; transition: filter var(--nv-dur) var(--nv-ease); }
 .nw-mega__text strong { display: flex; align-items: center; gap: 8px; font: 500 16px/1.26 var(--nv-font-display); color: var(--nv-text-heading); margin-bottom: 8px; transition: color var(--nv-dur) var(--nv-ease); }
-.nw-mega__text > span { display: block; font: 400 13.5px/1.6 var(--nv-font-body); color: var(--nv-text-muted); }
-.nw-mega__item:hover .nw-mega__text strong { color: var(--nv-blue-500); }   /* hover not in Figma — flagged */
+.nw-mega__text > span { display: block; font: 400 13.5px/1.6 var(--nv-font-body); color: var(--nv-text-muted); transition: color var(--nv-dur) var(--nv-ease); }
+/* hover = the whole link turns Steel Blue (direction 01), white text, icons inverted — live-site §3 */
+.nw-mega__item:hover { background: var(--nv-steel-blue); }
+.nw-mega__item:hover .nw-mega__text strong, .nw-mega__item:hover .nw-mega__text > span { color: var(--nv-white); }
+.nw-mega__item:hover .nv-ic { filter: brightness(0) invert(1); }
 
 /* --- Mobile drawer (≤900 only — responsive.md "Marketing header") --- */
 .nw-drawer { display: none; position: absolute; left: 0; right: 0; top: 85px; background: var(--nv-white); border-bottom: 1px solid var(--nv-border-band); z-index: 39; padding: 8px 24px 24px; }
@@ -221,7 +225,7 @@
 .nw-hero--inner .nw-hero__inner { padding-top: 56px; padding-bottom: 64px; }
 .nw-hero__crumb { margin-bottom: 28px; }
 .nw-hero__tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-.nw-hero__h1 { font: 600 52px/62px var(--nv-font-display); letter-spacing: -.52px; color: var(--nv-white); margin: 0; max-width: 700px; }
+.nw-hero__h1 { font: 600 clamp(30px, 3.9vw, 56px)/1.1 var(--nv-font-display); letter-spacing: -.01em; color: var(--nv-white); margin: 0; max-width: 860px; }   /* web-design §3 hero H1 56/1.1 → 30 */
 .nw-hero--inner .nw-hero__h1 { font-size: 42px; line-height: 1.22; font-weight: 500; letter-spacing: -.42px; max-width: 760px; }
 .nw-hero__copy { font: 600 18px/1.68 var(--nv-font-body); color: var(--nv-white); max-width: 560px; margin: 24px 0 0; }
 .nw-hero--inner .nw-hero__copy { font-weight: 400; color: var(--nv-text-on-dark-4); max-width: 620px; margin-top: 16px; }
@@ -260,14 +264,14 @@
 .nw-section--tight { padding: 72px 0 104px; }
 .nw-section__head { margin-bottom: 48px; }
 .nw-section__head--row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-.nw-h2 { font: 500 42px/1.22 var(--nv-font-display); color: var(--nv-text-heading); margin: 0; max-width: 760px; }
+.nw-h2 { font: 500 clamp(28px, 2.9vw, 42px)/1.22 var(--nv-font-display); color: var(--nv-text-heading); margin: 0; max-width: 760px; }
 .nw-h2--centre { text-align: center; margin-left: auto; margin-right: auto; }
 .nw-h3 { font: 500 22px/1.28 var(--nv-font-display); color: var(--nv-text-heading); margin: 0 0 24px; display: flex; align-items: center; gap: 12px; }
 .nw-rule { position: relative; height: 1px; background: var(--nv-border-band); margin: 40px 0 48px; }   /* Figma 1188:4/5 */
 .nw-rule::before { content: ""; position: absolute; left: 0; top: -2px; width: 185px; height: 3px; background: var(--nv-tropical-teal); }
 .nw-intro { font: 400 17px/1.7 var(--nv-font-body); color: var(--nv-text-muted); max-width: 708px; margin: 24px 0 0; }
 .nw-intro--centre { text-align: center; margin-left: auto; margin-right: auto; }
-.nw-eyebrow { display: block; font: 600 11.5px/16px var(--nv-font-body); letter-spacing: 1.4px; text-transform: uppercase; color: var(--nv-text-muted); }
+.nw-eyebrow { display: block; font: 600 13px/18px var(--nv-font-body); color: var(--nv-text-muted); }   /* sentence case — no letterspaced caps over headings (Brand Book p.35) */
 .nw-count { font: 400 14px/20px var(--nv-font-body); color: var(--nv-text-muted); margin: 0 0 20px; }
 .nw-link { display: inline-flex; align-items: center; gap: 10px; font: 600 15px/1.4 var(--nv-font-body); color: var(--nv-text-heading); text-decoration: none; white-space: nowrap; }
 .nw-link:hover { color: var(--nv-blue-500); }
@@ -289,7 +293,7 @@
 .nw-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .nw-tiles--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .nw-tile { display: flex; flex-direction: column; background: var(--nv-white); border: 1px solid var(--nv-border-hair); border-radius: 16px; overflow: hidden; text-decoration: none; transition: border-color var(--nv-dur) var(--nv-ease); }
-.nw-tile:hover { border-color: rgba(40,104,127,.35); }   /* hover not in Figma — flagged */
+.nw-tile:hover { border-color: var(--nv-tropical-teal); }   /* hairline turns #80B9BF — live-site §8 case-study card */
 .nw-tile__slot { position: relative; flex-shrink: 0; height: 190px; overflow: hidden; background: var(--nv-surface-slot); display: grid; place-items: center; }   /* image slot: article hero photo, else category icon */
 .nw-tile__body { display: flex; flex-direction: column; gap: 14px; flex: 1; padding: 22px 23px 23px; }
 .nw-tile__tags { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -299,9 +303,9 @@
 
 /* --- Featured article (Figma 793:2329) --- */
 .nw-feature { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 48px; align-items: center; }
-.nw-feature__slot { position: relative; height: 440px; border-radius: 24px; overflow: hidden; background: var(--nv-grad-blend); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: var(--nv-white); }
-.nw-feature__slot .nv-ic { position: relative; filter: brightness(0) invert(1); opacity: .92; }
-.nw-feature__slot span:not(.nv-sheet) { position: relative;font: 500 20px/1.3 var(--nv-font-display); }
+.nw-feature__slot { position: relative; height: 440px; border-radius: 24px; overflow: hidden; background: var(--nv-surface-slot); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: var(--nv-text-heading); }   /* light slot — Blend is kept for the page's one spotlight */
+.nw-feature__slot .nv-ic { position: relative; }
+.nw-feature__slot span { position: relative; font: 500 20px/1.3 var(--nv-font-display); }
 .nw-section--feature { padding: 70px 0; }   /* 580 band: 70 + 440 image + 70 */
 /* copy rhythm from 793:2333–2343: eyebrow → 12 → tags → 22 → title → 18 → desc → 28 → meta → 24 → button */
 .nw-feature__copy { display: flex; flex-direction: column; align-items: flex-start; }
@@ -360,10 +364,17 @@
 .nw-empty h2 { font: 500 22px/1.28 var(--nv-font-display); color: var(--nv-text-heading); margin: 0; }
 .nw-empty p { font: 400 15px/1.6 var(--nv-font-body); color: var(--nv-text-muted); margin: 10px 0 24px; }
 
-/* --- Conversion band (Figma "06 · Subscribe (Blue Slate · full bleed)" 794:95, 420) --- */
+/* --- Conversion band (Figma "06 · Subscribe" 794:95, 420). Default = Blue Slate GROUND
+   (large section, square). --spot = THE spotlight: Blend + 120px house curve (one per page). --- */
 .nw-band { position: relative; overflow: hidden; color: var(--nv-white); background: var(--nv-grad-ground); padding: 110px 0 112px; }
-.nw-band .nv-sheet--1 { bottom: auto; top: 220px; }   /* Sheet / 01 at y 220 */
-.nw-band .nv-sheet--2 { bottom: auto; top: 300px; }   /* Sheet / 03 at y 300 */
+.nw-band--spot { background: var(--nv-grad-blend); border-top-right-radius: 120px; }
+.nw-curve-fill { background: var(--nv-platinum); }   /* the Platinum notch behind the house curve (Brand Book p.50) */
+.nw-band__glow  { position: absolute; right: -420px; top: -460px; width: 1200px; height: 980px; border-radius: 50%; pointer-events: none;
+                  background: radial-gradient(closest-side, rgba(255,255,255,.30), rgba(170,210,214,.14) 55%, rgba(128,185,191,0)); }
+.nw-band__sheet { position: absolute; right: -150px; top: -230px; width: 560px; height: 560px; border-radius: 134px; pointer-events: none;   /* r = 0.24 × 560 */
+                  background: var(--nv-grad-lift); border: 1.5px solid rgba(255,255,255,.18); opacity: .5; }
+.nw-band__scrim { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(40,104,127,.55), rgba(40,104,127,0) 72%); }
+.nw-grain       { position: absolute; inset: 0; pointer-events: none; background: url('/grain.svg') 0 0 / 240px 240px; mix-blend-mode: overlay; opacity: .35; }   /* grain last */
 .nw-band__inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .nw-band h2 { font: 500 38px/48px var(--nv-font-display); color: var(--nv-white); margin: 0; }
 .nw-band p { font: 400 20px/1.7 var(--nv-font-body); color: var(--nv-text-on-dark-4); margin: 22px 0 0; max-width: 900px; }
@@ -384,8 +395,8 @@
 .nw-footer__social img { display: block; filter: brightness(0) invert(1); }
 .nw-footer__cols { display: flex; gap: 60px; text-align: right; padding-top: 86px; }
 .nw-footer__cols h4 { font: 500 17px/1.3 var(--nv-font-display); color: var(--nv-white); margin: 0 0 22px; }
-.nw-footer__cols a { display: block; font: 400 14px/1.6 var(--nv-font-body); color: var(--nv-text-on-dark-3); text-decoration: none; margin-bottom: 9.6px; transition: color var(--nv-dur) var(--nv-ease); }
-.nw-footer__cols a:hover { color: var(--nv-white); }
+.nw-footer__cols a { display: block; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-on-dark-2); text-decoration: none; margin-bottom: 10px; transition: color var(--nv-dur) var(--nv-ease); }   /* Raleway 13 #E9EAEC — web-design §3 */
+.nw-footer__cols a:hover { color: var(--nv-tropical-teal); }
 .nw-footer__rule { height: 1px; background: rgba(255,255,255,.16); margin: 60px -40px 36px; }   /* extends 40px past both gutters */
 .nw-footer__legal { display: flex; justify-content: space-between; align-items: center; gap: 16px 28px; flex-wrap: wrap; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-on-dark-3); }
 .nw-footer__legal div { display: flex; gap: 28px; }
@@ -533,13 +544,16 @@
    ========================================================================== */
 @media (max-width: 900px) {
   .nw-nav, .nw-header__cta, .nw-mega, .nw-accent { display: none; }
+  .nw-header, .nw-header__inner { height: 64px; }                                      /* bar 64 / logo 31 — responsive.md */
+  .nw-header__logo img { height: 31px; }
   .nw-header__toggle { display: grid; }
-  .nw-drawer { display: block; }
+  .nw-drawer { display: block; top: 64px; border-top: 3px solid var(--nv-tropical-teal); }
+  .nw-drawer__row { height: 57px; font: 500 19px/1.3 var(--nv-font-display); color: var(--nv-text-heading); }
+  .nw-drawer__sub { background: var(--nv-surface-tint); margin: 0 -24px; padding: 8px 24px 8px 40px; }
 
   .nw-hero { min-height: 0; }
   .nw-hero__inner { padding-top: 64px; padding-bottom: 64px; }
   .nw-hero--inner .nw-hero__inner { padding-top: 40px; padding-bottom: 48px; }
-  .nw-hero__h1 { font-size: 40px; line-height: 1.1; letter-spacing: -.4px; }          /* proposal in responsive.md */
   .nw-hero--inner .nw-hero__h1 { font-size: 32px; }
   .nw-hero__copy { font-size: 16px; }
   .nw-search { flex-wrap: wrap; }
@@ -547,7 +561,6 @@
 
   .nw-section { padding: 64px 0; }
   .nw-section--tight { padding: 48px 0 64px; }
-  .nw-h2 { font-size: 32px; }
   .nw-rule { margin: 28px 0 32px; }
   .nw-chips { display: flex; overflow-x: auto; flex-wrap: nowrap; border-radius: 28px; }
   .nw-tiles, .nw-tiles--2, .nw-services { grid-template-columns: minmax(0, 1fr); }
@@ -557,17 +570,21 @@
   .nw-feature__slot { height: 240px; }
   .nw-section--feature { padding: 48px 0; }
   .nw-band { padding: 64px 0; }
+  .nw-band--spot { border-top-right-radius: 64px; }                                   /* house curve 120 → 64 */
   .nw-band h2 { font-size: 30px; line-height: 1.2; }
   .nw-band p { font-size: 17px; }
   .nw-band__actions { flex-direction: column; align-self: stretch; }
-  .nw-band__btn { width: 100%; }
+  .nw-band__btn { width: 100%; height: 52px; }
 
-  .nw-footer { padding: 48px 0 32px; }
-  .nw-footer__top { grid-template-columns: minmax(0, 1fr); gap: 32px; }
-  .nw-footer__logo img { height: 60px; }
-  .nw-footer__cols { flex-direction: column; gap: 28px; text-align: left; padding-top: 0; }
+  /* footer: everything centred and stacked, logo 180 — responsive.md */
+  .nw-footer { padding: 48px 0 32px; text-align: center; }
+  .nw-footer__top { grid-template-columns: minmax(0, 1fr); gap: 32px; justify-items: center; }
+  .nw-footer__logo img { width: 180px; height: auto; }
+  .nw-footer__contact { align-items: center; }
+  .nw-footer__social { justify-content: center; }
+  .nw-footer__cols { flex-direction: column; gap: 28px; text-align: center; padding-top: 0; }
   .nw-footer__rule { margin: 40px 0 24px; }
-  .nw-footer__legal { flex-direction: column; align-items: flex-start; }
+  .nw-footer__legal { flex-direction: column-reverse; align-items: center; }
 
   .na-page { padding: 32px 0 64px; }
   .na-grid-2, .na-grid-3 { grid-template-columns: minmax(0, 1fr); }
@@ -583,83 +600,257 @@
 
 
 /* ============================================================================
-   AUTH PAGES (/login, /signup, /auth/callback) — same UI as nuvho-onboarding-ui
+   AUTH PAGES (/login, /signup, /auth/callback) — nuvho-web-design v1.0.0 §11 Login
    ----------------------------------------------------------------------------
-   Ported from onboarding's src/pages/Login.jsx so staff see one sign-in across
-   Nuvho apps: a centred 448px column on #F5F8F9 — logo 44 → white card (r16,
-   1px #B8D8E0, p28) → "Staff & Admin" divider → Sign in with Microsoft pill →
-   copyright. Each value is onboarding's Tailwind class translated 1:1 (noted).
+   Unchanged from the prior handover: every .nv-auth* class below is used ONLY
+   by the Login and Signup pages, which were already aligned to §11.
    ========================================================================== */
+
+/* --- Shell ---------------------------------------------------------------- */
 .nv-auth {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;   /* min-h-screen flex items-center justify-center */
-  padding: 48px 16px; box-sizing: border-box; background: #F5F8F9;                    /* px-4 bg-nuvho-bg */
+  display: flex;
+  min-height: 100vh;
+  background: var(--nv-surface-page);
 }
-.nv-auth__col { width: 100%; max-width: 448px; }                                      /* w-full max-w-md */
-.nv-auth__col > * + * { margin-top: 20px; }                                           /* space-y-5 */
 
-.nv-auth__logo { display: block; margin-bottom: 32px; }                               /* text-center mb-8 */
-.nv-auth__logo img { display: block; height: 44px; width: auto; margin: 0 auto; }
+/* --- Left 50%: brand panel (11, hidden < 900px) --------------------------- */
+.nv-auth__brand {
+  position: relative;
+  flex: 0 0 50%;
+  width: 50%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px 72px;
+  background: var(--nv-grad-ground);
+}
 
-.nv-auth__card { background: #FFFFFF; border: 1px solid #B8D8E0; border-radius: 16px; padding: 28px; }   /* rounded-2xl p-7 */
-.nv-auth__title { margin: 0 0 4px; font: 600 14px/20px var(--nv-font-display); color: #28687F; }        /* font-display font-semibold text-sm text-nuvho-teal mb-1 */
-.nv-auth__lede  { margin: 0 0 20px; font: 400 12px/16px var(--nv-font-body); color: #9AACAD; }          /* text-xs text-nuvho-hint mb-5 */
+/* Signature device — radius law 4: r = 0.24 of the short edge, focal 0.30,
+   stacked sheets offset by no less than one full radius, 1.5px white @.45
+   leading edge. Anchored upper-right. One focal per surface, never two. */
+.nv-auth__sheet { position: absolute; pointer-events: none; }
+.nv-auth__sheet--a {              /* stack sheet - 190 short edge -> r 46 */
+  width: 190px; height: 190px; border-radius: 46px;
+  top: -40px; right: 104px;
+  background: var(--nv-grad-lift);
+  opacity: .14;
+}
+.nv-auth__sheet--b {              /* stack sheet - offset 46 = exactly 1 r from A */
+  width: 190px; height: 190px; border-radius: 46px;
+  top: 6px; right: 58px;
+  background: var(--nv-grad-lift);
+  opacity: .20;
+}
+.nv-auth__sheet--focal {          /* the one bright form - 200 -> r 60 (0.30) */
+  width: 200px; height: 200px; border-radius: 60px;
+  top: 52px; right: -46px;
+  background: var(--nv-grad-focal);
+  border: 1.5px solid rgba(255,255,255,.45);   /* leading edge - radius law 4 */
+  opacity: .22;
+}
 
-.nv-auth__form > * + * { margin-top: 16px; }                                          /* space-y-4 */
-.nv-auth__label { display: block; margin-bottom: 6px; font: 500 12px/16px var(--nv-font-body); color: #5E6B6C; }   /* text-xs font-medium text-nuvho-muted mb-1.5 */
+.nv-auth__brand-inner { position: relative; z-index: 1; }
+.nv-auth__brand-logo  { width: 200px; height: auto; }      /* Logo / White 200 */
+
+.nv-auth__hero {
+  margin-top: 48px;
+  font-family: var(--font-comfortaa), sans-serif;
+  font-weight: 600;
+  font-size: 42px;
+  line-height: 1.15;
+  color: var(--nv-white);
+}
+
+.nv-auth__sub {
+  margin-top: 20px;
+  max-width: 420px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255,255,255,.75);   /* 11 states 75% for the supporting line */
+}
+
+.nv-auth__brand-footer {
+  position: absolute;
+  left: 72px;
+  bottom: 40px;
+  z-index: 1;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 12px;
+  color: rgba(255,255,255,.45);   /* 11 footer: 12 white @45% */
+}
+
+/* --- Right 50%: form panel ------------------------------------------------ */
+.nv-auth__panel {
+  flex: 1 1 50%;
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--nv-surface-page);
+}
+
+.nv-auth__mobile-logo     { display: none; margin-bottom: 28px; }
+.nv-auth__mobile-logo img { height: 36px; width: auto; display: block; }   /* Logo / Primary at the 36px web lock (Brand Book p.40) */
+
+/* Card — 7: r14, 1px hairline, padding 40 36, NO SHADOW */
+.nv-auth__card {
+  width: 400px;
+  max-width: 100%;
+  background: var(--nv-surface-card);
+  border: 1px solid var(--nv-border-hair);
+  border-radius: 14px;
+  padding: 40px 36px;
+}
+
+.nv-auth__title {
+  font-family: var(--font-comfortaa), sans-serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--nv-text-heading);
+}
+
+.nv-auth__lede {
+  margin-top: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--nv-text-muted);
+}
+
+/* --- Fields — 5 Figma field ----------------------------------------------- */
+.nv-auth__form    { margin-top: 28px; }
+.nv-auth__group + .nv-auth__group { margin-top: 20px; }
+.nv-auth__actions { margin-top: 28px; }
+
+.nv-auth__label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--nv-text-body);
+}
+.nv-auth__req { color: var(--nv-error); }
+
 .nv-auth__field {
-  width: 100%; box-sizing: border-box; padding: 10px 12px;                            /* px-3 py-2.5 */
-  border: 1px solid #B8D8E0; border-radius: 8px; background: #F5F8F9;                 /* rounded-lg bg-nuvho-bg */
-  font: 400 14px/20px var(--nv-font-body); color: #414B4C; outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--nv-white);
+  border: 1px solid var(--nv-border);
+  border-radius: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 14px;
+  color: var(--nv-text-body);
+  outline: none;
+  transition: border-color .15s ease;
 }
-.nv-auth__field::placeholder { color: #9CA3AF; }
-.nv-auth__field:focus { border-color: transparent; box-shadow: 0 0 0 2px #6BA1BF; }   /* focus:ring-2 focus:ring-nuvho-blue focus:border-transparent */
-.nv-auth__help { margin-top: 6px; font: 400 11px/16px var(--nv-font-body); color: #9AACAD; }
+.nv-auth__field::placeholder { color: var(--nv-text-meta); }
+.nv-auth__field:focus        { border: 1.5px solid var(--nv-blue-slate); }  /* no ring - 5 */
+.nv-auth__field:disabled     { background: var(--nv-surface-disabled); }
 
-.nv-auth__error {                                                                     /* text-xs text-cherry-600 bg-cherry-50 border-cherry-200 rounded-lg px-3 py-2.5 */
-  margin-bottom: 0; padding: 10px 12px; border: 1px solid #F3C7D6; border-radius: 8px; background: #FDF2F5;
-  font: 400 12px/16px var(--nv-font-body); color: #7A1F3A;
+.nv-auth__help {
+  margin-top: 6px;
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 300;
+  font-size: 11px;
+  color: var(--nv-text-muted);
 }
-.nv-auth__error a { color: inherit; font-weight: 600; text-decoration: underline; }
 
-.nv-auth__btn {                                                                       /* w-full bg-nuvho-teal text-white py-2.5 rounded-full text-sm font-display font-semibold */
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 16px; border: 0; border-radius: 999px; background: #28687F; color: #FFFFFF;
-  font: 600 14px/20px var(--nv-font-display); cursor: pointer; transition: background-color .15s ease;
+/* --- Error banner — 5 ----------------------------------------------------- */
+.nv-auth__error {
+  margin-top: 24px;
+  background: rgba(152,38,73,.07);
+  border: 1px solid rgba(152,38,73,.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 13px;
+  color: var(--nv-error);
 }
-.nv-auth__btn:hover:not(:disabled) { background: #6BA1BF; }                           /* hover:bg-nuvho-blue */
-.nv-auth__btn:disabled { opacity: .5; cursor: not-allowed; }                          /* disabled:opacity-50 */
-.nv-auth__btn[aria-busy="true"] { cursor: progress; }
 
-.nv-auth__foot { margin: 16px 0 0; text-align: center; font: 400 12px/16px var(--nv-font-body); color: #9AACAD; }
-.nv-auth__foot a { color: #28687F; font-weight: 600; }
+/* --- Button — 4 Figma Button, no exceptions ------------------------------- */
+.nv-auth__btn {
+  width: 100%;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--nv-blue-slate);
+  color: var(--nv-white);
+  font-family: var(--font-raleway), sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color .15s ease;   /* recolour only - no lift, no shadow */
+}
+.nv-auth__btn:hover:not(:disabled) { background: var(--nv-blue-500); }
+.nv-auth__btn:disabled {
+  background: var(--nv-surface-disabled-fill);
+  color: var(--nv-text-disabled);
+  cursor: not-allowed;
+}
+
+/* --- Foot link ------------------------------------------------------------ */
+.nv-auth__foot {
+  margin-top: 24px;
+  text-align: center;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 13px;
+  color: var(--nv-text-muted);
+}
+.nv-auth__foot a       { color: var(--nv-blue-slate); font-weight: 600; }
 .nv-auth__foot a:hover { text-decoration: underline; }
 
-/* "Staff & Admin" — hairline with the label sitting on the page colour */
-.nv-auth__divider { position: relative; display: flex; justify-content: center; }
-.nv-auth__divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #B8D8E0; }
-.nv-auth__divider span {                                                              /* bg-nuvho-bg px-3 text-[11px] font-display text-nuvho-hint uppercase tracking-widest */
-  position: relative; padding: 0 12px; background: #F5F8F9;
-  font: 400 11px/16px var(--nv-font-display); color: #9AACAD; text-transform: uppercase; letter-spacing: .1em;
+.nv-auth__panel-footer {
+  display: none;
+  margin-top: 32px;
+  font-family: var(--font-raleway), sans-serif;
+  font-size: 11px;
+  color: var(--nv-text-muted);
 }
 
-.nv-auth__ms {                                                                        /* w-full flex gap-3 bg-white border rounded-full px-4 py-3 text-sm font-display font-semibold text-nuvho-charcoal */
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 12px 16px; border: 1px solid #B8D8E0; border-radius: 999px; background: #FFFFFF;
-  font: 600 14px/20px var(--nv-font-display); color: #414B4C; cursor: pointer; transition: background-color .15s ease;
+/* --- Responsive — 14: 900px is the ONLY approved breakpoint --------------- */
+@media (max-width: 900px) {
+  .nv-auth__brand        { display: none; }
+  .nv-auth__panel        { flex-basis: 100%; width: 100%; padding: 40px 24px; }
+  .nv-auth__mobile-logo  { display: block; }
+  .nv-auth__panel-footer { display: block; }
 }
-.nv-auth__ms:hover:not(:disabled) { background: #EDF4F6; }                            /* hover:bg-nuvho-tint */
-.nv-auth__ms:disabled { opacity: .5; cursor: not-allowed; }
-.nv-auth__ms[aria-busy="true"] { opacity: 1; cursor: progress; }
-.nv-auth__ms svg { flex: none; width: 20px; height: 20px; }
 
-.nv-auth__copy { padding-top: 8px; text-align: center; font: 400 11px/16px var(--nv-font-body); color: #9AACAD; }   /* text-[11px] text-nuvho-hint pt-2 */
+/* --- Busy state, Microsoft sign-in, callback page (2026-10-07) ------------- */
+.nv-auth__btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.nv-auth__btn[aria-busy="true"]:disabled { background: var(--nv-blue-slate); color: var(--nv-white); cursor: progress; }
+.nv-auth__error a { color: inherit; font-weight: 600; text-decoration: underline; }
 
-/* Microsoft popup redirect page (onboarding AzureCallback.jsx) and the /login route loader */
+/* "Nuvho staff" divider — hairline with a sentence-case label (no letterspaced caps) */
+.nv-auth__divider { position: relative; display: flex; justify-content: center; margin: 28px 0 16px; }
+.nv-auth__divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--nv-border-band); }
+.nv-auth__divider span { position: relative; padding: 0 12px; background: var(--nv-surface-card); font: 500 13px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
+
+/* Sign in with Microsoft — Chapter 04 secondary button: h40 pill, 1px Blue Slate @50%,
+   recolour-only hover. The four-square Microsoft mark is the one permitted non-library glyph here. */
+.nv-auth__ms {
+  width: 100%; height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 24px; box-sizing: border-box; border: 1px solid rgba(40,104,127,.5); border-radius: 999px;
+  background: transparent; font: 600 15px/1.4 var(--nv-font-body); color: var(--nv-blue-slate);
+  cursor: pointer; transition: background-color .15s ease;
+}
+.nv-auth__ms:hover:not(:disabled) { background: rgba(40,104,127,.08); }
+.nv-auth__ms:disabled { color: var(--nv-text-disabled); border-color: var(--nv-border); cursor: not-allowed; }
+.nv-auth__ms[aria-busy="true"]:disabled { color: var(--nv-blue-slate); border-color: rgba(40,104,127,.5); cursor: progress; }
+.nv-auth__ms svg { flex: none; width: 18px; height: 18px; }
+
+/* Microsoft popup redirect page and the /login route loader */
 .nv-auth__callback {
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-  padding: 24px; background: #F5F8F9; text-align: center;
-  font: 400 14px/20px var(--nv-font-display); color: #9AACAD;                        /* font-display text-nuvho-hint text-sm */
+  padding: 24px; box-sizing: border-box; background: var(--nv-surface-page); text-align: center;
+  font: 400 14px/1.6 var(--nv-font-body); color: var(--nv-text-muted);
 }
 
 /* ============================================================================
@@ -753,8 +944,8 @@
 .nw-suggest {
   position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30;
   margin: 0; padding: 6px; list-style: none; box-sizing: border-box;
-  background: var(--nv-white); border: 1px solid var(--nv-border-hair); border-radius: 16px;
-  box-shadow: 0 12px 32px rgba(40,64,76,.18); text-align: left;
+  background: var(--nv-white); border: 1px solid var(--nv-border-header); border-radius: 16px;
+  text-align: left;   /* no drop shadow (brand law) — the hairline and the white-on-photo contrast separate it */
 }
 .nw-suggest__item { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
 .nw-suggest__item.is-active { background: var(--nv-surface-tint); }

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import MicrosoftSignInButton, { MicrosoftClientConfig } from '@/components/MicrosoftSignInButton'
 
 interface Props {
-  /** null when the AZURE_* env vars are unset — the Microsoft button is hidden, as in onboarding. */
+  /** null when the AZURE_* env vars are unset — the Microsoft option is hidden. */
   microsoft: MicrosoftClientConfig | null
 }
 
@@ -20,6 +20,7 @@ export default function LoginForm({ microsoft }: Props) {
   // Which button signed in — its spinner stays up while the home page loads with the session
   const [redirectingVia, setRedirectingVia] = useState<'password' | 'microsoft' | null>(null)
   const busy = loading || microsoftBusy || redirectingVia !== null
+  const passwordBusy = loading || redirectingVia === 'password'
 
   function onSignedIn(via: 'password' | 'microsoft') {
     setRedirectingVia(via)
@@ -52,22 +53,56 @@ export default function LoginForm({ microsoft }: Props) {
     }
   }
 
-  // Same UI as nuvho-onboarding-ui (src/pages/Login.jsx): logo → password card →
-  // "Staff & Admin" divider → Sign in with Microsoft → copyright.
   return (
     <div className="nv-auth">
-      <main className="nv-auth__col">
-        <Link href="/" className="nv-auth__logo">
-          <Image src="/logo-primary.svg" alt="Nuvho" width={125} height={44} priority />
+      {/* Brand panel — split screen, hidden below 900px */}
+      <aside className="nv-auth__brand">
+        <div className="nv-auth__sheet nv-auth__sheet--a" />
+        <div className="nv-auth__sheet nv-auth__sheet--b" />
+        <div className="nv-auth__sheet nv-auth__sheet--focal" />
+
+        <div className="nv-auth__brand-inner">
+          <Link href="/" className="inline-block">
+            <Image
+              src="/logo-white.svg"
+              alt="Nuvho"
+              width={200}
+              height={54}
+              className="nv-auth__brand-logo"
+              priority
+            />
+          </Link>
+          <h2 className="nv-auth__hero">Answers, close at hand.</h2>
+          <p className="nv-auth__sub">
+            Guides, tutorials and documentation for Smart Hoteliers — organised so
+            your team finds the right answer first time.
+          </p>
+        </div>
+
+        <p className="nv-auth__brand-footer">&copy; Nuvho Holdings Pty Ltd</p>
+      </aside>
+
+      {/* Form panel */}
+      <main className="nv-auth__panel">
+        <Link href="/" className="nv-auth__mobile-logo">
+          <Image src="/logo-primary.svg" alt="Nuvho" width={102} height={36} priority />
         </Link>
 
         <div className="nv-auth__card">
-          <h1 className="nv-auth__title">Sign In</h1>
-          <p className="nv-auth__lede">Access the Nuvho Knowledge Base</p>
+          <h1 className="nv-auth__title">Sign in</h1>
+          <p className="nv-auth__lede">Welcome back to the Nuvho Knowledge Base.</p>
+
+          {error && (
+            <div className="nv-auth__error" role="alert">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="nv-auth__form">
-            <div>
-              <label className="nv-auth__label" htmlFor="email">Email</label>
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="email">
+                Email address <span className="nv-auth__req">*</span>
+              </label>
               <input
                 id="email"
                 type="email"
@@ -79,8 +114,11 @@ export default function LoginForm({ microsoft }: Props) {
                 placeholder="you@company.com"
               />
             </div>
-            <div>
-              <label className="nv-auth__label" htmlFor="password">Password</label>
+
+            <div className="nv-auth__group">
+              <label className="nv-auth__label" htmlFor="password">
+                Password <span className="nv-auth__req">*</span>
+              </label>
               <input
                 id="password"
                 type="password"
@@ -89,40 +127,38 @@ export default function LoginForm({ microsoft }: Props) {
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 className="nv-auth__field"
-                placeholder="••••••••"
+                placeholder="Enter your password"
               />
             </div>
-            {error && (
-              <p className="nv-auth__error" role="alert">
-                {error}
-              </p>
-            )}
-            <button type="submit" disabled={busy} className="nv-auth__btn" aria-busy={loading || redirectingVia === 'password'}>
-              {(loading || redirectingVia === 'password') && <span className="nv-spin nv-spin--sm nv-spin--w" aria-hidden="true" />}
-              {loading || redirectingVia === 'password' ? 'Signing in…' : 'Sign In'}
-            </button>
+
+            <div className="nv-auth__actions">
+              <button type="submit" disabled={busy} className="nv-auth__btn" aria-busy={passwordBusy}>
+                {passwordBusy && <span className="nv-spin nv-spin--sm nv-spin--w" aria-hidden="true" />}
+                {passwordBusy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </div>
           </form>
+
+          {microsoft && (
+            <>
+              <div className="nv-auth__divider"><span>Nuvho staff</span></div>
+              <MicrosoftSignInButton
+                config={microsoft}
+                disabled={busy}
+                redirecting={redirectingVia === 'microsoft'}
+                onBusyChange={setMicrosoftBusy}
+                onError={setError}
+                onSuccess={() => onSignedIn('microsoft')}
+              />
+            </>
+          )}
 
           <p className="nv-auth__foot">
             Don&apos;t have an account? <Link href="/signup">Create one</Link>
           </p>
         </div>
 
-        {microsoft && (
-          <>
-            <div className="nv-auth__divider"><span>Staff &amp; Admin</span></div>
-            <MicrosoftSignInButton
-              config={microsoft}
-              disabled={busy}
-              redirecting={redirectingVia === 'microsoft'}
-              onBusyChange={setMicrosoftBusy}
-              onError={setError}
-              onSuccess={() => onSignedIn('microsoft')}
-            />
-          </>
-        )}
-
-        <p className="nv-auth__copy">&copy; Nuvho Systems Pty Ltd</p>
+        <p className="nv-auth__panel-footer">&copy; Nuvho Holdings Pty Ltd</p>
       </main>
     </div>
   )
