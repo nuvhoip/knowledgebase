@@ -316,15 +316,29 @@
 
 /* --- Topic cards = Figma service cards (Home 05, 568×280 r24, Steel Blue hover) --- */
 .nw-services { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.nw-service { position: relative; display: block; min-height: 220px; box-sizing: border-box; border-radius: 24px; background: var(--nv-white); border: 1px solid var(--nv-border-band); padding: 39px; text-decoration: none; overflow: hidden; transition: background-color var(--nv-dur) var(--nv-ease), border-color var(--nv-dur) var(--nv-ease); }
+.nw-service { position: relative; display: block; min-height: 220px; box-sizing: border-box; border-radius: 24px; background: var(--nv-white); box-shadow: inset 0 0 0 1px var(--nv-border-band); padding: 40px; text-decoration: none; overflow: hidden; transition: background-color var(--nv-dur) var(--nv-ease); }   /* hairline as an inset ring (as nuvho.com), so the hover art runs to the edge */
 .nw-service__icon { display: block; margin-bottom: 20px; transition: filter var(--nv-dur) var(--nv-ease); }
 .nw-service h3 { display: flex; align-items: center; gap: 12px; font: 500 28px/1.2 var(--nv-font-display); color: var(--nv-text-heading); margin: 0 0 16px; transition: color var(--nv-dur) var(--nv-ease); }
 .nw-service p { font: 400 16px/1.7 var(--nv-font-body); color: var(--nv-text-muted); margin: 0; max-width: 480px; transition: color var(--nv-dur) var(--nv-ease); }
 .nw-service__meta { display: block; margin-top: 20px; font: 600 14px/1.4 var(--nv-font-body); color: var(--nv-blue-slate); transition: color var(--nv-dur) var(--nv-ease); }
-.nw-service:hover { background: var(--nv-steel-blue); border-color: var(--nv-steel-blue); }
-.nw-service:hover h3, .nw-service:hover p, .nw-service:hover .nw-service__meta { color: var(--nv-white); }
-.nw-service:hover p { font-weight: 600; }
-.nw-service:hover .nv-ic { filter: brightness(0) invert(1); }
+.nw-service__icon, .nw-service h3, .nw-service p, .nw-service__meta { position: relative; }   /* copy above the hover art */
+/* Hover art, as nuvho.com .nv-card: grain + glow + two sheets, hidden at rest */
+.nw-service__grain, .nw-service__glow, .nw-service__s1, .nw-service__s2 { position: absolute; pointer-events: none; opacity: 0; transition: opacity 240ms var(--nv-ease); }
+.nw-service__grain { inset: 0; background: url('/grain-card.svg') 0 0 / 240px 240px; mix-blend-mode: overlay; }
+.nw-service__glow { left: 300px; top: -230px; width: 560px; height: 420px; border-radius: 50%; background: radial-gradient(280px 210px at 50% 50%, rgba(233,234,236,.55) 0%, rgba(164,202,206,.2) 50%, rgba(145,193,198,0) 100%); }
+.nw-service__s1 { right: -92px; top: -130px; width: 240px; height: 240px; border-radius: 70px; background: linear-gradient(40.011deg, rgba(164,202,206,.24) 14.48%, rgba(255,255,255,.03) 85.45%), rgba(255,255,255,.42); }
+.nw-service__s2 { left: -90px; top: 210px; width: 240px; height: 240px; border-radius: 70px; background: linear-gradient(40.011deg, rgba(164,202,206,.24) 14.48%, rgba(255,255,255,.03) 85.45%); }
+/* Link badge (nuvho.com .nv-linkicon): pale at rest, white arrow on a translucent disc on hover */
+.nw-service__link { position: absolute; top: 20px; right: 20px; z-index: 1; width: 36px; height: 36px; border-radius: 50%; background: #EEF4F5; display: flex; align-items: center; justify-content: center; pointer-events: none; transition: background-color var(--nv-dur) var(--nv-ease), transform var(--nv-dur) var(--nv-ease); }
+.nw-service__link::before { content: ""; width: 16px; height: 16px; background: var(--nv-blue-slate); -webkit-mask: url('/icons/arrow-up-right.svg') center / contain no-repeat; mask: url('/icons/arrow-up-right.svg') center / contain no-repeat; transition: background-color var(--nv-dur) var(--nv-ease); }
+.nw-service:hover, .nw-service:focus-visible { background: var(--nv-steel-blue); box-shadow: none; }
+.nw-service:hover :is(.nw-service__grain, .nw-service__glow, .nw-service__s1, .nw-service__s2),
+.nw-service:focus-visible :is(.nw-service__grain, .nw-service__glow, .nw-service__s1, .nw-service__s2) { opacity: 1; }
+.nw-service:hover .nw-service__link, .nw-service:focus-visible .nw-service__link { background: rgba(255,255,255,.2); transform: translate(2px, -2px); }
+.nw-service:hover .nw-service__link::before, .nw-service:focus-visible .nw-service__link::before { background: var(--nv-white); }
+.nw-service:hover :is(h3, p, .nw-service__meta), .nw-service:focus-visible :is(h3, p, .nw-service__meta) { color: var(--nv-white); }
+.nw-service:hover p, .nw-service:focus-visible p { -webkit-text-stroke: .45px currentColor; }   /* faux-bold without reflow, as nuvho.com */
+.nw-service:hover .nv-ic, .nw-service:focus-visible .nv-ic { filter: brightness(0) invert(1); }
 
 /* --- Reading column (article page — not in Figma; proposal, decision 2) --- */
 .nw-article { max-width: 760px; }
@@ -564,8 +578,10 @@
   .nw-rule { margin: 28px 0 32px; }
   .nw-chips { display: flex; overflow-x: auto; flex-wrap: nowrap; border-radius: 28px; }
   .nw-tiles, .nw-tiles--2, .nw-services { grid-template-columns: minmax(0, 1fr); }
-  .nw-service { padding: 28px; min-height: 0; }
+  .nw-service { padding: 29px; min-height: 0; }
   .nw-service h3 { font-size: 24px; }
+  .nw-service__link { top: 16px; right: 16px; width: 32px; height: 32px; }
+  .nw-service__link::before { width: 14px; height: 14px; }
   .nw-feature { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .nw-feature__slot { height: 240px; }
   .nw-section--feature { padding: 48px 0; }
