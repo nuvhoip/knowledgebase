@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { extractHero, injectHero } from '@/components/heroImage'
 import RichTextEditor from '@/components/RichTextEditor'
 import ImageUploadField from '@/components/ImageUploadField'
+import Icon from '@/components/Icon'
+import SyncModal from '@/components/admin/SyncModal'
 
 interface Props {
   categorySlug: string
@@ -35,6 +37,7 @@ export default function ArticleEditForm({
   const [readTime, setReadTime] = useState(String(initialReadTime))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [syncOpen, setSyncOpen] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -111,11 +114,24 @@ export default function ArticleEditForm({
 
       <div className="na-form__actions">
         <Link href={`/articles/${categorySlug}/${slug}`} className="nv-btn nv-btn--secondary">Cancel</Link>
+        {/* Sync sits beside the primary action (Jude, IT Catchup 13 Oct 2026); same modal as the admin table */}
+        <button type="button" onClick={() => setSyncOpen(true)} disabled={saving} className="nv-btn nv-btn--secondary">
+          <Icon name="arrows-rotate" size={16} />
+          Sync
+        </button>
         <button type="submit" disabled={saving} className="nv-btn">
           {saving && <span className="nv-spin nv-spin--sm nv-spin--w" />}
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
+
+      {syncOpen && (
+        <SyncModal
+          target={{ categorySlug, slug, title: initialTitle }}
+          note="Sync sends the last saved version of this article. Save your changes first if you have edited it."
+          onClose={() => setSyncOpen(false)}
+        />
+      )}
     </form>
   )
 }

@@ -94,9 +94,6 @@ export default function Header({ user, topics }: Props) {
           {isStaff && (
             <Link href="/admin" className="nw-nav__item" onMouseEnter={scheduleClose}>Admin</Link>
           )}
-          <a href="https://nuvho.com" target="_blank" rel="noopener noreferrer" className="nw-nav__item" onMouseEnter={scheduleClose}>
-            nuvho.com
-          </a>
         </nav>
 
         <div className="nw-header__cta">
@@ -193,7 +190,6 @@ export default function Header({ user, topics }: Props) {
           )}
           <Link href="/search" className="nw-drawer__row" onClick={closeAll}>Search</Link>
           {isStaff && <Link href="/admin" className="nw-drawer__row" onClick={closeAll}>Admin</Link>}
-          <a href="https://nuvho.com" target="_blank" rel="noopener noreferrer" className="nw-drawer__row">nuvho.com</a>
 
           <div className="nw-drawer__cta">
             {user ? (
