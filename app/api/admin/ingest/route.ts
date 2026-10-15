@@ -3,6 +3,8 @@ import { Pool } from 'pg'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
+import { isVersioningEnabled } from '@/lib/flags'
+import { snapshotArticle, withDb } from '@/lib/versions'
 
 /**
  * POST /api/admin/ingest
@@ -164,22 +166,35 @@ export async function POST(req: NextRequest) {
   const order = maxRes.rows[0].next
 
   try {
-    await pool.query(
-      `INSERT INTO nuvho_kb.articles
-         (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, 'pending', $9, NOW())`,
-      [
-        slug,
-        title.trim(),
-        description.trim(),
-        categorySlug.trim(),
-        resolvedSubcategorySlug,
-        sanitizeArticleHtml(content),
-        Number(readTime) || 5,
-        order,
-        visibility ?? null,
-      ]
-    )
+    // KB_VERSIONING_ENABLED: the insert and its first version commit together.
+    // Flag off: the same insert as before, straight on the pool.
+    const versioning = isVersioningEnabled()
+    await withDb(pool, versioning, async db => {
+      const inserted = await db.query(
+        `INSERT INTO nuvho_kb.articles
+           (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, 'pending', $9, NOW())
+         RETURNING id`,
+        [
+          slug,
+          title.trim(),
+          description.trim(),
+          categorySlug.trim(),
+          resolvedSubcategorySlug,
+          sanitizeArticleHtml(content),
+          Number(readTime) || 5,
+          order,
+          visibility ?? null,
+        ]
+      )
+      if (versioning) {
+        await snapshotArticle(db, inserted.rows[0].id, {
+          source: 'ingest',
+          changedBy: session.email,
+          changeSummary: sourceTier ? `Ingested from the ${sourceTier} tier` : 'Ingested',
+        })
+      }
+    })
   } catch (err: any) {
     if (err.code === '23505') {
       return NextResponse.json(

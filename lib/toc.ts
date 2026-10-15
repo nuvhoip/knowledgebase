@@ -41,7 +41,8 @@ const NAMED_ENTITIES: Record<string, string> = {
   ndash: '–', mdash: '—', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', hellip: '…',
 }
 
-function decodeEntities(s: string): string {
+/** Decodes the HTML entities TinyMCE and sanitize-html emit (also used by lib/diff.ts). */
+export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, code: string) => {
     if (code[0] === '#') {
       const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10)

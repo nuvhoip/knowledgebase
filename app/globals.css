@@ -472,6 +472,33 @@
 .na-table tbody tr.na-row--stale > td,
 .na-table tbody tr.na-row--stale:hover > td { background: var(--nv-warning-bg); }
 .na-index__stale { margin-top: 4px; }
+/* Version history (components/admin/VersionHistory.tsx — KB_VERSIONING_ENABLED only) */
+.na-history-card { margin-top: 24px; }
+.na-history__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.na-history__head .na-form__title { margin: 0; }
+.na-history__muted { display: flex; align-items: center; gap: 8px; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-muted); margin: 8px 0; }
+.na-history__list { list-style: none; margin: 0; padding: 0; }
+.na-history__item { border-bottom: 1px solid var(--nv-border-band); }
+.na-history__item:last-child { border-bottom: 0; }
+.na-history__row { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+.na-history__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-muted); }
+.na-history__meta strong { display: inline-flex; align-items: center; gap: 8px; font: 600 14px/1.4 var(--nv-font-body); color: var(--nv-text-body); }
+.na-history__detail { padding: 0 0 20px; }
+.na-history__tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--nv-border-hair); margin-bottom: 16px; }
+.na-history__preview { border: 1px solid var(--nv-border-band); border-radius: 14px; padding: 20px 24px; max-height: 520px; overflow-y: auto; }
+.na-history__preview h3 { font: 500 22px/1.28 var(--nv-font-display); color: var(--nv-text-heading); margin: 0 0 4px; }
+.na-diff { font: 400 14px/1.6 var(--nv-font-body); }
+.na-diff__field { margin: 0 0 8px; }
+.na-diff__field strong { margin-right: 8px; color: var(--nv-text-heading); }
+.na-diff__lines { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--nv-border-band); border-radius: 14px; overflow: hidden; max-height: 520px; overflow-y: auto; }
+.na-diff__line { display: grid; grid-template-columns: 24px 1fr; padding: 4px 12px; color: var(--nv-text-muted); }
+.na-diff__line--add { background: var(--nv-success-bg); color: var(--nv-success-fg); }
+.na-diff__line--del { background: var(--nv-error-bg); color: var(--nv-error-fg); }
+.na-diff ins { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.na-diff del { text-decoration: line-through; }
+.na-diff__field ins { background: var(--nv-success-bg); color: var(--nv-success-fg); padding: 0 4px; border-radius: 4px; }
+.na-diff__field del { background: var(--nv-error-bg); color: var(--nv-error-fg); padding: 0 4px; border-radius: 4px; }
+
 .na-index__pager { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 16px; font: 400 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
 .na-expander { display: flex; align-items: flex-start; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .na-expander > .nv-ic { margin-top: 4px; transition: transform var(--nv-dur) var(--nv-ease); }

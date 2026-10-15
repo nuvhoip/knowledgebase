@@ -5,6 +5,8 @@ import Footer from '@/components/Footer'
 import Icon from '@/components/Icon'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { isVersioningEnabled } from '@/lib/flags'
+import { getLatestVersions } from '@/lib/versions'
 import { STALE_AFTER_MONTHS, type ContentIndexRow } from '@/lib/contentIndex'
 import ContentIndexTable from './ContentIndexTable'
 
@@ -34,8 +36,9 @@ interface IndexQueryRow {
   updated_at: string
 }
 
-// Read-only. Uses only columns that exist today; "last updated by" and "version" are not
-// stored yet (see docs/handover/2026-10-kb-db-changes-for-glenn.md) and show "—".
+// Read-only. "Updated by" and "Version" come from article_versions when
+// KB_VERSIONING_ENABLED is on (see docs/handover/2026-10-kb-db-changes-for-glenn.md);
+// with it off they show "—".
 async function getIndexRows(): Promise<ContentIndexRow[]> {
   const { rows } = await pool.query<IndexQueryRow>(
     `SELECT a.id, a.slug, a.title, a.description, a.category_slug,
@@ -49,6 +52,9 @@ async function getIndexRows(): Promise<ContentIndexRow[]> {
      JOIN nuvho_kb.subcategories s ON s.slug = a.subcategory_slug
      ORDER BY a.updated_at ASC, a.title ASC`
   )
+  // With version history on (Pass 4), the latest version supplies "Version" and "Updated by"
+  const latest = isVersioningEnabled() ? await getLatestVersions(pool) : null
+
   return rows.map(r => ({
     id: r.id,
     slug: r.slug,
@@ -65,8 +71,8 @@ async function getIndexRows(): Promise<ContentIndexRow[]> {
     vectorSyncedAt: r.vector_synced_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    updatedBy: null,
-    version: null,
+    updatedBy: latest?.get(r.id)?.changedBy ?? null,
+    version: latest?.get(r.id)?.version ?? null,
   }))
 }
 
