@@ -455,6 +455,24 @@
 .na-table__slug { font: 400 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--nv-text-meta); margin-top: 2px; }
 .na-table__sub { display: block; font: 400 12px/1.5 var(--nv-font-body); color: var(--nv-text-muted); }
 .na-actions { display: flex; justify-content: flex-end; align-items: center; gap: 2px; flex-wrap: wrap; }
+
+/* Content index (app/admin/content-index) — reuses the table above; stale rows get the warning wash */
+.na-toolbar__left .na-index__search { width: 260px; }   /* beats .na-input's full width */
+.na-index__date { white-space: nowrap; }
+.na-index__check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
+.na-index__check input { width: 16px; height: 16px; accent-color: var(--nv-blue-slate); }
+.na-index__total { font: 400 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); white-space: nowrap; }
+.na-index__scroll { overflow-x: auto; }
+.na-index__scroll .na-table { min-width: 1100px; }
+.na-index__sort { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.na-index__sort:focus-visible { outline: 2px solid var(--nv-tropical-teal); outline-offset: 2px; border-radius: 4px; }
+.na-index__arrow { opacity: .3; transition: transform var(--nv-dur) var(--nv-ease); }
+.na-index__arrow--on { opacity: 1; }
+.na-index__arrow--up { transform: rotate(180deg); }
+.na-table tbody tr.na-row--stale > td,
+.na-table tbody tr.na-row--stale:hover > td { background: var(--nv-warning-bg); }
+.na-index__stale { margin-top: 4px; }
+.na-index__pager { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 16px; font: 400 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
 .na-expander { display: flex; align-items: flex-start; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .na-expander > .nv-ic { margin-top: 4px; transition: transform var(--nv-dur) var(--nv-ease); }
 .na-expander--open > .nv-ic { transform: rotate(90deg); }
