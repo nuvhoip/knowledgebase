@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { isVersioningEnabled } from '@/lib/flags'
+import { ensureBaseline, lockArticle, snapshotArticle } from '@/lib/versions'
 
 interface RouteParams {
   params: { categorySlug: string; slug: string }
@@ -54,9 +56,13 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const newStatus = action === 'publish' ? 'published' : 'pending'
 
+    const versioning = isVersioningEnabled()
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+
+      // KB_VERSIONING_ENABLED: lock the row so the status change and its snapshot stay in step
+      const articleId = versioning ? await lockArticle(client, params.categorySlug, params.slug) : null
 
       // Get current status + sub-category first
       const current = await client.query(
@@ -76,6 +82,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ success: true, status: newStatus, changed: false })
       }
 
+      if (articleId) await ensureBaseline(client, articleId)
+
       // Update status
       await client.query(
         `UPDATE nuvho_kb.articles
@@ -83,6 +91,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
          WHERE category_slug = $2 AND slug = $3`,
         [newStatus, params.categorySlug, params.slug]
       )
+
+      if (articleId) {
+        await snapshotArticle(client, articleId, {
+          source: 'status',
+          changedBy: session.email,
+          changeSummary: newStatus === 'published' ? 'Published' : 'Unpublished',
+        })
+      }
 
       // Recalculate article_count (only published articles) on both the category and sub-category
       await client.query(

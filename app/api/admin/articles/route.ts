@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
+import { isVersioningEnabled } from '@/lib/flags'
+import { snapshotArticle, withDb } from '@/lib/versions'
 
 function slugify(text: string): string {
   return text
@@ -96,13 +98,22 @@ export async function POST(req: NextRequest) {
     // Insert with status = 'pending' — article_count is NOT incremented until published.
     // category_slug is set explicitly here; the DB trigger keeps it aligned with
     // subcategory_slug's actual parent on any future update.
-    await pool.query(
-      `INSERT INTO nuvho_kb.articles
-         (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW())`,
-      [slug, title.trim(), description.trim(), categorySlug.trim(), subcategorySlug.trim(), sanitizeArticleHtml(content),
-       Number(readTime) || 5, Boolean(featured), order, visibility ?? null]
-    )
+    // KB_VERSIONING_ENABLED: the insert and its first version commit together.
+    // Flag off: the same insert as before, straight on the pool.
+    const versioning = isVersioningEnabled()
+    await withDb(pool, versioning, async db => {
+      const inserted = await db.query(
+        `INSERT INTO nuvho_kb.articles
+           (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW())
+         RETURNING id`,
+        [slug, title.trim(), description.trim(), categorySlug.trim(), subcategorySlug.trim(), sanitizeArticleHtml(content),
+         Number(readTime) || 5, Boolean(featured), order, visibility ?? null]
+      )
+      if (versioning) {
+        await snapshotArticle(db, inserted.rows[0].id, { source: 'create', changedBy: session.email, changeSummary: 'Created' })
+      }
+    })
 
     return NextResponse.json({ success: true, slug, categorySlug: categorySlug.trim(), status: 'pending' })
   } catch (err: any) {

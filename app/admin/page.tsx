@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import SiteHeader from '@/components/SiteHeader'
 import Footer from '@/components/Footer'
+import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
 import AdminDashboard from './AdminDashboard'
 
@@ -28,6 +30,10 @@ export default async function AdminPage() {
               <h1 className="na-title">Admin dashboard</h1>
               <p className="na-sub">Signed in as <strong>{session.email}</strong></p>
             </div>
+            <Link href="/admin/content-index" className="nv-btn nv-btn--secondary">
+              <Icon name="rectangle-list" size={16} />
+              Content index
+            </Link>
           </div>
           <AdminDashboard />
         </div>

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { extractHero, injectHero } from '@/components/heroImage'
 import RichTextEditor from '@/components/RichTextEditor'
 import ImageUploadField from '@/components/ImageUploadField'
+import Icon from '@/components/Icon'
+import SyncModal from '@/components/admin/SyncModal'
 
 interface Props {
   categorySlug: string
@@ -14,6 +16,8 @@ interface Props {
   initialDescription: string
   initialContent: string
   initialReadTime: number
+  /** KB_VERSIONING_ENABLED (from the server page): shows the optional change-summary field. */
+  versioning?: boolean
 }
 
 // Fields follow the Figma field law (browser-app §5); buttons the Figma Button (§4).
@@ -22,7 +26,7 @@ interface Props {
 // edited in TinyMCE (components/RichTextEditor.tsx); images dropped into it are uploaded
 // to /api/admin/uploads and referenced by URL. The server sanitises on save (lib/sanitize.ts).
 export default function ArticleEditForm({
-  categorySlug, slug, initialTitle, initialDescription, initialContent, initialReadTime,
+  categorySlug, slug, initialTitle, initialDescription, initialContent, initialReadTime, versioning = false,
 }: Props) {
   const router = useRouter()
   const initial = extractHero(initialContent)
@@ -35,6 +39,8 @@ export default function ArticleEditForm({
   const [readTime, setReadTime] = useState(String(initialReadTime))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [changeSummary, setChangeSummary] = useState('')
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -46,7 +52,9 @@ export default function ArticleEditForm({
       const res = await fetch(`/api/articles/${categorySlug}/${slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, content, readTime }),
+        body: JSON.stringify(
+          versioning ? { title, description, content, readTime, changeSummary } : { title, description, content, readTime }
+        ),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -107,15 +115,36 @@ export default function ArticleEditForm({
         <input id="readTime" type="number" min={1} max={60} value={readTime} onChange={e => setReadTime(e.target.value)} className="na-input" />
       </div>
 
+      {versioning && (
+        <div className="na-field">
+          <label className="na-label" htmlFor="changeSummary">What changed? <small>optional</small></label>
+          <input id="changeSummary" type="text" maxLength={500} value={changeSummary} onChange={e => setChangeSummary(e.target.value)} className="na-input" placeholder="e.g. Updated the 2027 rate table" />
+          <span className="na-help">Shown in the version history below.</span>
+        </div>
+      )}
+
       {error && <p className="na-error" role="alert">{error}</p>}
 
       <div className="na-form__actions">
         <Link href={`/articles/${categorySlug}/${slug}`} className="nv-btn nv-btn--secondary">Cancel</Link>
+        {/* Sync sits beside the primary action (Jude, IT Catchup 13 Oct 2026); same modal as the admin table */}
+        <button type="button" onClick={() => setSyncOpen(true)} disabled={saving} className="nv-btn nv-btn--secondary">
+          <Icon name="arrows-rotate" size={16} />
+          Sync
+        </button>
         <button type="submit" disabled={saving} className="nv-btn">
           {saving && <span className="nv-spin nv-spin--sm nv-spin--w" />}
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
+
+      {syncOpen && (
+        <SyncModal
+          target={{ categorySlug, slug, title: initialTitle }}
+          note="Sync sends the last saved version of this article. Save your changes first if you have edited it."
+          onClose={() => setSyncOpen(false)}
+        />
+      )}
     </form>
   )
 }

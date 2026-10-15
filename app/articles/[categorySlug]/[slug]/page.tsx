@@ -5,7 +5,9 @@ import Footer from '@/components/Footer'
 import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import HelpfulVote from '@/components/HelpfulVote'
+import ArticleToc from '@/components/ArticleToc'
 import { extractHero } from '@/components/heroImage'
+import { buildToc, TOC_MIN_ENTRIES } from '@/lib/toc'
 import { getCategoryBySlug, getArticleBySlug, canView } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 
@@ -45,6 +47,9 @@ export default async function ArticlePage({ params }: Props) {
   }
 
   const { hero, body } = extractHero(article.content)
+  // Heading ids are added to the rendered copy only; the stored HTML is unchanged (lib/toc.ts)
+  const toc = buildToc(body)
+  const showToc = toc.count >= TOC_MIN_ENTRIES
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -75,7 +80,7 @@ export default async function ArticlePage({ params }: Props) {
         />
 
         <section className="nw-section nw-section--band nw-section--tight">
-          <div className="nw-wrap">
+          <div className={`nw-wrap${showToc ? ' nw-article-layout' : ''}`}>
             <article className="nw-reader">
               {canEdit && (
                 <div className="nw-article__bar">
@@ -89,8 +94,10 @@ export default async function ArticlePage({ params }: Props) {
 
               <p className="nw-article__lede">{article.description}</p>
 
+              {showToc && <ArticleToc entries={toc.entries} variant="inline" />}
+
               {body.trim() ? (
-                <div className="nw-prose" dangerouslySetInnerHTML={{ __html: body }} />
+                <div className="nw-prose" dangerouslySetInnerHTML={{ __html: toc.html }} />
               ) : (
                 <div className="nw-prose">
                   <h2>Overview</h2>
@@ -120,6 +127,11 @@ export default async function ArticlePage({ params }: Props) {
                 </Link>
               </div>
             </article>
+            {showToc && (
+              <aside className="nw-article-aside">
+                <ArticleToc entries={toc.entries} variant="side" />
+              </aside>
+            )}
           </div>
         </section>
       </main>

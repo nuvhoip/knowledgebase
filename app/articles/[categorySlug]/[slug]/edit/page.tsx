@@ -5,6 +5,8 @@ import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
 import { getCategoryBySlug, getArticleBySlug } from '@/lib/data'
+import { isVersioningEnabled } from '@/lib/flags'
+import VersionHistory from '@/components/admin/VersionHistory'
 import ArticleEditForm from './ArticleEditForm'
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +33,9 @@ export default async function ArticleEditPage({ params }: Props) {
     getCategoryBySlug(params.categorySlug),
   ])
   if (!article || !category) notFound()
+
+  // Version history (Pass 4) renders only when KB_VERSIONING_ENABLED is on
+  const versioning = isVersioningEnabled()
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -60,8 +65,14 @@ export default async function ArticleEditPage({ params }: Props) {
                 initialDescription={article.description}
                 initialContent={article.content ?? ''}
                 initialReadTime={article.readTime}
+                versioning={versioning}
               />
             </div>
+            {versioning && (
+              <div className="nw-reader na-history-card">
+                <VersionHistory categorySlug={params.categorySlug} slug={params.slug} />
+              </div>
+            )}
           </div>
         </section>
       </main>
