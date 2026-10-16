@@ -81,6 +81,12 @@ export default async function ArticlePage({ params }: Props) {
 
         <section className="nw-section nw-section--band nw-section--tight">
           <div className={`nw-wrap${showToc ? ' nw-article-layout' : ''}`}>
+            {/* Left of the article, and first in the markup so tab and reading order match the layout */}
+            {showToc && (
+              <aside className="nw-article-aside">
+                <ArticleToc entries={toc.entries} variant="side" />
+              </aside>
+            )}
             <article className="nw-reader">
               {canEdit && (
                 <div className="nw-article__bar">
@@ -127,11 +133,6 @@ export default async function ArticlePage({ params }: Props) {
                 </Link>
               </div>
             </article>
-            {showToc && (
-              <aside className="nw-article-aside">
-                <ArticleToc entries={toc.entries} variant="side" />
-              </aside>
-            )}
           </div>
         </section>
       </main>
