@@ -930,8 +930,8 @@
 .nw-reader { max-width: 896px; margin: 0 auto; background: var(--nv-white); border: 1px solid var(--nv-border-band); border-radius: 24px; padding: 40px; box-sizing: border-box; }
 .nw-reader .nw-article__bar { margin-bottom: 32px; }
 
-/* Table of contents (lib/toc.ts + components/ArticleToc.tsx). ≥1024: reader 896 + 32 + sticky
-   "On this page" 232 = the 1160 wrap; below that, a collapsible "Contents" card above the body. */
+/* Table of contents (lib/toc.ts + components/ArticleToc.tsx). ≥1024: sticky "On this page" 232
+   on the left + 32 + reader 896 = the 1160 wrap; below that, a collapsible "Contents" card above the body. */
 .nw-article-aside { display: none; }
 .nw-toc__list { list-style: none; margin: 0; padding: 0; }
 .nw-toc__list--sub { padding-left: 14px; }
@@ -948,14 +948,14 @@
 .nw-toc__head[aria-expanded="true"] .nv-ic { transform: rotate(180deg); }
 .nw-toc :is(a, button):focus-visible { outline: 2px solid var(--nv-tropical-teal); outline-offset: 2px; }
 .nw-toc__title { font: 600 12px/1.4 var(--nv-font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--nv-text-meta); margin: 0 0 10px; }
-.nw-toc--side { padding: 4px 0 4px 16px; border-left: 1px solid var(--nv-border-band); }
+.nw-toc--side { padding: 4px 16px 4px 0; border-right: 1px solid var(--nv-border-band); }
 .nw-toc--inline { margin: 0 0 40px; padding: 0 20px; border: 1px solid var(--nv-border-band); border-radius: 16px; background: var(--nv-surface-band); }
 .nw-toc__head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border: 0; background: none; cursor: pointer; font: 600 15px/1.4 var(--nv-font-body); color: var(--nv-text-heading); }
 .nw-toc--inline > div > .nw-toc__list { padding-bottom: 12px; }
 .nw-prose :is(h2, h3)[id] { scroll-margin-top: 24px; }   /* the header is not sticky; just keep the heading off the edge */
 .nw-prose :is(h2, h3)[tabindex="-1"]:focus { outline: none; }   /* focus moves here on a TOC jump; nothing to show */
 @media (min-width: 1024px) {
-  .nw-article-layout { display: grid; grid-template-columns: minmax(0, 896px) 232px; gap: 32px; justify-content: center; align-items: start; }
+  .nw-article-layout { display: grid; grid-template-columns: 232px minmax(0, 896px); gap: 32px; justify-content: center; align-items: start; }
   .nw-article-layout .nw-reader { margin: 0; }
   .nw-article-aside { display: block; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
   .nw-toc--inline { display: none; }
