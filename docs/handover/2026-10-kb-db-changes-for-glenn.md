@@ -1,21 +1,38 @@
 # Knowledge Base: DB changes for Glenn (Oct 2026)
 
 **From:** Jose, on behalf of the KB work from the IT Catchup (Tue 13 Oct 2026, Jude Bolger)
-**For:** Glenn Pepito (DB owner)
-**Branch:** `feature/kb-jude-feedback-2026-10-13`
+**For:** Glenn Pepito (DB owner). **Update 30 Oct 2026:** Jose took this over and applied A and C to production (see [Applied log](#applied-log-30-oct-2026)).
+**Branch:** `feature/kb-jude-feedback-2026-10-13` (merged as nuvhoip/knowledgebase PR #5)
 
-The app code is safe to merge as is: everything that needs a DB change sits behind a feature flag that is **off by default**, so the PR can merge before any of this is applied. Nothing below has been run against any database.
+The app code is safe to merge as is: everything that needs a DB change sits behind a feature flag that is **off by default**, so the PR can merge before any of this is applied.
 
 | # | Change | Status | Flag to switch on afterwards |
 |---|--------|--------|------------------------------|
-| A | `nuvho_kb.article_versions` (version history + restore) | Code built, flag off | `KB_VERSIONING_ENABLED=true` |
-| B | Retention job for A | Needs a home (you) | — |
-| C | `nuvho_kb.topics` + `nuvho_kb.article_topics` | **Spec only, no code yet.** Needs your sign-off on the model first | (future) `KB_TOPICS_ENABLED` |
+| A | `nuvho_kb.article_versions` (version history + restore) | **Applied 30 Oct 2026** (table, grants, backfill). Flag still off | `KB_VERSIONING_ENABLED=true`, once the PR #5 build is live |
+| B | Retention job for A | Not scheduled yet | — |
+| C | `nuvho_kb.topics` + `nuvho_kb.article_topics` | **Tables applied 30 Oct 2026**, empty. App code not written yet | (future) `KB_TOPICS_ENABLED` |
 | D | Fields the content index can't show yet | Notes and options | — |
 
-**Target for all SQL:** the KB database on `nuvho-vectordb` (209.38.90.132), database `nuvho_kb`, schema `nuvho_kb`. App DB user is `nuvho_kb_user` per `.env.example`. Please confirm, since the grants below assume it.
+**Target for all SQL:** the KB database on `nuvho-vectordb` (209.38.90.132), database `nuvho_kb`, schema `nuvho_kb`. App DB user is `nuvho_kb_user` per `.env.example` (confirmed 30 Oct).
 
-> **Before applying anything:** there is no scheduled backup job on this droplet that we could find (it also hosts the four vector DBs). Please take a `pg_dump` of `nuvho_kb` first, and consider a standing backup job.
+> **Before applying anything:** there is no scheduled backup job on this droplet that we could find (it also hosts the four vector DBs). Please take a `pg_dump` of `nuvho_kb` first, and consider a standing backup job. (A one-off dump was taken before the 30 Oct changes; a standing job is still missing.)
+
+## Applied log (30 Oct 2026)
+
+Applied by Jose via the Nuvho SSH connector, as `postgres`, in a single transaction (`psql -1 -v ON_ERROR_STOP=1`).
+
+1. **Backup:** `pg_dump -Fc nuvho_kb` → `/root/backups/nuvho_kb_20261030_pre_versioning_topics.dump` on `nuvho-vectordb` (88 KB, mode 600, all 8 tables listed by `pg_restore -l`). Restore with `pg_restore -d nuvho_kb --clean` if needed.
+2. **A:** steps 1–3 below exactly as written. The backfill ran at the same time rather than just before switch-on (agreed trade-off: if the import pipeline changes an article before the flag is on, that article's v1 is slightly older than its live content).
+3. **C:** the SQL below exactly as written, with Q3 answered as **`ON DELETE SET NULL`** (subtopics of a deleted parent become top-level).
+4. **Checks:** 6 articles, 6 v1 rows in `article_versions`; `topics` and `article_topics` empty; `nuvho_kb_user` has `USAGE` on `article_versions_id_seq` and `topics_id_seq`.
+
+**Grants are broader than written.** `postgres` has default privileges in schema `nuvho_kb` that give `nuvho_kb_user` every table privilege on any table it creates (`arwdDxtm`), as on every existing table. So the app user can also `UPDATE`/`DELETE` version rows. The app never does, but to make history insert-only at the DB level:
+```sql
+REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES ON nuvho_kb.article_versions FROM nuvho_kb_user;
+```
+Not applied yet. The retention job (B) should then run as `postgres` or another role that keeps `DELETE`.
+
+**Not done:** B (retention job), switching on `KB_VERSIONING_ENABLED`, the topics app code and the naming decision in C.
 
 ---
 
@@ -126,7 +143,7 @@ WHERE v.id = r.id
 
 ## C. Topics and subtopics (spec only, needs your sign-off)
 
-**Status:** not built. We agreed to wait for your view on the model before writing code (Pass 5 is "spec-only" in the PR).
+**Status:** tables created in production on 30 Oct 2026 (empty); app code not built. We agreed to wait for your view on the model before writing code (Pass 5 is "spec-only" in the PR).
 
 **Proposed model (Q7):** a **category** is where an article lives (exactly one, as today). **Topics** are cross-cutting tags (many per article) used to link related content, with an optional parent topic for subtopics.
 
@@ -165,7 +182,7 @@ DROP TABLE IF EXISTS nuvho_kb.topics;
 **Questions for you:**
 1. Is this the model you had in mind, or did you mean something closer to a second category tree?
 2. One level of subtopics, or arbitrary depth? (The table allows any depth; we'd enforce one level in the app unless you say otherwise.)
-3. When a parent topic is deleted, should its subtopics become top-level (`SET NULL`, as above) or be deleted too?
+3. When a parent topic is deleted, should its subtopics become top-level (`SET NULL`, as above) or be deleted too? **Answered 30 Oct: `SET NULL`** (applied).
 4. Should topic assignments be versioned with A? (Not in the current A design.)
 5. Should the import pipeline set topics, e.g. from the vector DB metadata `tags`?
 
@@ -190,8 +207,8 @@ The new staff-only page `/admin/content-index` reads existing columns only. Gaps
 
 ## Switch-on order
 
-1. Take a backup of `nuvho_kb`.
-2. **A:** create the table → run grants if needed → run the backfill → check the counts.
-3. Set `KB_VERSIONING_ENABLED=true` on App Platform, then smoke-test one edit and one restore.
+1. ~~Take a backup of `nuvho_kb`.~~ Done 30 Oct.
+2. ~~**A:** create the table → run grants if needed → run the backfill → check the counts.~~ Done 30 Oct.
+3. Set `KB_VERSIONING_ENABLED=true` on App Platform, then smoke-test one edit and one restore. **Wait until the PR #5 build is live:** earlier builds don't read this flag.
 4. **B:** schedule the retention job (it can come later; nothing is deleted until a version is over 12 months old).
-5. **C:** only after you've answered the topics questions. The app code is still to be written.
+5. ~~**C:** only after you've answered the topics questions.~~ Tables done 30 Oct. The app code is still to be written, and the naming clash and questions 1, 2, 4 and 5 are still open.
