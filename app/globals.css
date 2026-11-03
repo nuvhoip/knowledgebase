@@ -439,6 +439,7 @@
 .na-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .na-toolbar__left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font: 400 14px/1.4 var(--nv-font-body); color: var(--nv-text-muted); }
 .na-toolbar__left .na-select { width: auto; min-width: 180px; }
+.na-toolbar__right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 
 /* table — §6: rows 48, header #28687F @8% + @28% rule, sentence case */
 .na-table { width: 100%; border-collapse: collapse; font: 400 13px/1.5 var(--nv-font-body); color: var(--nv-text-body); }

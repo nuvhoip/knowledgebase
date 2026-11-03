@@ -1120,6 +1120,46 @@ function ArticlesTab({
 
   useEffect(() => { load() }, [load])
 
+  // ── Claude → KB approval queue ──
+  // Pulls articles saved from Claude (vector DB entries marked Public / kb_publish) into this
+  // list as PENDING via POST /api/admin/claude-sync. Runs once quietly when the tab opens,
+  // and on demand via the "Sync from Claude" button beside "Add article".
+  const [syncing, setSyncing] = useState(false)
+  const autoSynced = useRef(false)
+
+  const syncFromClaude = useCallback(async (silent = false) => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/admin/claude-sync', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (!silent) onToast(data.error || 'Claude sync failed.', 'error')
+        return
+      }
+      const count = Array.isArray(data.imported) ? data.imported.length : 0
+      const errs = Array.isArray(data.errors) ? data.errors.length : 0
+      if (count > 0) {
+        onToast(`${count} article${count === 1 ? '' : 's'} from Claude added for review.`, 'success')
+        await load()
+      } else if (!silent) {
+        onToast(
+          errs ? `Claude sync finished with ${errs} error${errs === 1 ? '' : 's'} — see server log.` : 'No new articles from Claude.',
+          errs ? 'error' : 'success'
+        )
+      }
+    } catch {
+      if (!silent) onToast('Claude sync failed.', 'error')
+    } finally {
+      setSyncing(false)
+    }
+  }, [onToast, load])
+
+  useEffect(() => {
+    if (autoSynced.current) return
+    autoSynced.current = true
+    syncFromClaude(true)
+  }, [syncFromClaude])
+
   const filtered = articles
     .filter(a => !filterCategory || a.category_slug === filterCategory)
     .filter(a => !filterStatus || a.status === filterStatus)
@@ -1297,12 +1337,25 @@ function ArticlesTab({
             <option value="published">Published</option>
           </select>
         </div>
-        {!showAdd && (
-          <button type="button" onClick={startAdd} className="nv-btn">
-            <Icon name="plus" size={16} />
-            Add article
+        {/* Sync from Claude sits right beside Add article (grouped so space-between doesn't split them) */}
+        <div className="na-toolbar__right">
+          <button
+            type="button"
+            onClick={() => syncFromClaude(false)}
+            className="nv-btn nv-btn--secondary"
+            disabled={syncing}
+            title="Import articles saved from Claude as pending"
+          >
+            <Icon name="arrows-rotate" size={16} />
+            {syncing ? 'Syncing…' : 'Sync from Claude'}
           </button>
-        )}
+          {!showAdd && (
+            <button type="button" onClick={startAdd} className="nv-btn">
+              <Icon name="plus" size={16} />
+              Add article
+            </button>
+          )}
+        </div>
       </div>
 
       {showAdd && (
