@@ -14,6 +14,10 @@ const VALID_VISIBILITY = ['public', 'private'] as const
 /** PATCH /api/articles/[categorySlug]/[slug]
  *  Updates an article. Restricted to @nuvho.com users.
  *  subcategorySlug and visibility are optional — omit to leave unchanged.
+ *  subcategorySlug may belong to a different category: the article then moves to that
+ *  category (the trg_sync_article_category_slug trigger rewrites articles.category_slug).
+ *  This is how admins file Claude Inbox submissions under a real category.
+ *  Responds with the article's (possibly new) categorySlug and slug.
  */
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const session = await getSession()
@@ -34,15 +38,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: `visibility must be one of: ${VALID_VISIBILITY.join(', ')}, or null to inherit.` }, { status: 400 })
     }
 
+    // The target sub-category decides the target category (it may differ from the URL's).
+    let targetCategorySlug = params.categorySlug
     if (subcategorySlug) {
       const subCheck = await pool.query(
-        'SELECT slug FROM nuvho_kb.subcategories WHERE slug = $1 AND category_slug = $2',
-        [subcategorySlug, params.categorySlug]
+        'SELECT category_slug FROM nuvho_kb.subcategories WHERE slug = $1',
+        [subcategorySlug]
       )
       if (subCheck.rowCount === 0) {
-        return NextResponse.json({ error: 'Sub-category not found in this category.' }, { status: 404 })
+        return NextResponse.json({ error: 'Sub-category not found.' }, { status: 404 })
       }
+      targetCategorySlug = subCheck.rows[0].category_slug
     }
+    const movingCategory = targetCategorySlug !== params.categorySlug
 
     // KB_VERSIONING_ENABLED: the save and its history snapshot commit together in one
     // transaction. Flag off: the same queries as before, straight on the pool.
@@ -59,6 +67,21 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
       const previousSubcategorySlug = before.rows[0].subcategory_slug
 
+      // Article URLs are /articles/[category]/[slug], so a slug must be unique within its
+      // category — refuse a move that would collide instead of failing on the UPDATE.
+      if (movingCategory) {
+        const clash = await db.query(
+          'SELECT 1 FROM nuvho_kb.articles WHERE category_slug = $1 AND slug = $2',
+          [targetCategorySlug, params.slug]
+        )
+        if (clash.rowCount) {
+          return NextResponse.json(
+            { error: 'An article with the same slug already exists in the target category. Rename one of them first.' },
+            { status: 409 }
+          )
+        }
+      }
+
       if (articleId) await ensureBaseline(db, articleId)
 
       // visibility: undefined (key omitted) = leave unchanged, null = clear override (inherit),
@@ -73,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
              visibility       = CASE WHEN $6 THEN visibility ELSE $7 END,
              updated_at       = NOW()
          WHERE category_slug = $8 AND slug = $9
-         RETURNING slug, subcategory_slug`,
+         RETURNING slug, category_slug, subcategory_slug`,
         [
           title.trim(),
           description.trim(),
@@ -100,9 +123,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
 
       // If the article moved to a different sub-category, keep both sub-categories'
-      // published article_count accurate (categories.article_count is unaffected since
-      // this route never changes an article's top-level category).
+      // published article_count accurate — and both categories' too when it changed category.
       const newSubcategorySlug = result.rows[0].subcategory_slug
+      const newCategorySlug = result.rows[0].category_slug
       if (newSubcategorySlug !== previousSubcategorySlug) {
         await db.query(
           `UPDATE nuvho_kb.subcategories SET article_count = (
@@ -117,8 +140,28 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           [newSubcategorySlug]
         )
       }
+      if (newCategorySlug !== params.categorySlug) {
+        for (const cat of [params.categorySlug, newCategorySlug]) {
+          await db.query(
+            `UPDATE nuvho_kb.categories SET article_count = (
+               SELECT COUNT(*) FROM nuvho_kb.articles WHERE category_slug = $1 AND status = 'published'
+             ) WHERE slug = $1`,
+            [cat]
+          )
+        }
+        // Keep the Claude import log pointing at the article's new home. Skipped when
+        // migration 007 hasn't been run (an error here would abort the save's transaction).
+        const hasImportLog = await db.query(`SELECT to_regclass('nuvho_kb.vector_imports') IS NOT NULL AS ok`)
+        if (hasImportLog.rows[0]?.ok) {
+          await db.query(
+            `UPDATE nuvho_kb.vector_imports SET category_slug = $1
+             WHERE category_slug = $2 AND article_slug = $3`,
+            [newCategorySlug, params.categorySlug, params.slug]
+          )
+        }
+      }
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, categorySlug: newCategorySlug, slug: result.rows[0].slug })
     })
   } catch (err) {
     console.error('[api/articles PATCH]', err)
