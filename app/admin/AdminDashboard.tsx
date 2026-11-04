@@ -1223,6 +1223,7 @@ function ArticlesTab({
   }
 
   async function saveEdit(art: AdminArticle) {
+    if (!fSubcategory) { onToast('Pick a sub-category — the selected category has none yet.', 'error'); return }
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
@@ -1243,7 +1244,9 @@ function ArticlesTab({
       })
       const data = await res.json()
       if (!res.ok) { onToast(data.error || 'Update failed.', 'error'); return }
-      onToast('Article updated.', 'success')
+      const moved = data.categorySlug && data.categorySlug !== art.category_slug
+      const movedTo = moved ? categories.find(c => c.slug === data.categorySlug)?.title ?? data.categorySlug : ''
+      onToast(moved ? `Article updated and moved to ${movedTo}.` : 'Article updated.', 'success')
       setEditingKey(null)
       await load()
     } catch {
@@ -1469,10 +1472,12 @@ function ArticlesTab({
                           categories={categories} subcategories={subcategories}
                           title={fTitle} desc={fDesc} category={fCategory} subcategory={fSubcategory}
                           content={fContent} readTime={fReadTime} featured={fFeatured} visibility={fVisibility}
-                          setTitle={setFTitle} setDesc={setFDesc} setCategory={setFCategory} setSubcategory={setFSubcategory}
+                          setTitle={setFTitle} setDesc={setFDesc}
+                          setCategory={v => { setFCategory(v); setFSubcategory(subcategories.find(s => s.category_slug === v)?.slug ?? '') }}
+                          setSubcategory={setFSubcategory}
                           setContent={setFContent} setReadTime={setFReadTime} setFeatured={setFFeatured} setVisibility={setFVisibility}
                           onSave={() => saveEdit(art)} onCancel={cancel} saving={saving} saveLabel="Save changes"
-                          showCategory={false}
+                          showCategory
                           hero={fHero} setHero={setFHero} showHero
                         />
                       </td>
