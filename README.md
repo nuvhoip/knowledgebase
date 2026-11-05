@@ -94,6 +94,20 @@ article styles. The `<>` toolbar button still exposes the raw HTML.
   the MIME type in `ALLOWED_TYPES` / `sniffType()` in `lib/uploads.ts` and widen
   `ACCEPTED_IMAGE_TYPES` in `lib/uploadClient.ts`.
 
+## Image library (hero images)
+
+The Edit page's hero image field can also **Choose from library**: curated photos from the Marketing
+SharePoint *Image Repository*, imported as a snapshot. Selecting a photo opens a preview of the real
+article hero and tile (desktop / mobile) before it is applied; nothing is saved until "Save changes".
+
+- `scripts/008_image_library.sql` creates `nuvho_kb.image_library` (image bytes live in `nuvho_kb.uploads`).
+- `scripts/import-image-library.mjs "<path>/Image Repository" --dry-run | --yes` resizes every photo to a
+  2400px JPEG plus a 480px thumbnail and records it. Re-run whenever marketing adds photos; unchanged files
+  are skipped and removed ones are hidden.
+- `KB_IMAGE_LIBRARY_ENABLED=true` shows the option (off by default).
+
+Rollout steps: [docs/handover/2026-11-kb-image-library.md](docs/handover/2026-11-kb-image-library.md).
+
 ## Deploy
 
 Production (knowledge.nuvho.com) runs on **DigitalOcean App Platform** behind Cloudflare, built

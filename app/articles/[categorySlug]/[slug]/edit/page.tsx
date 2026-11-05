@@ -5,7 +5,7 @@ import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
 import { getCategoryBySlug, getArticleBySlug } from '@/lib/data'
-import { isVersioningEnabled } from '@/lib/flags'
+import { isImageLibraryEnabled, isVersioningEnabled } from '@/lib/flags'
 import VersionHistory from '@/components/admin/VersionHistory'
 import ArticleEditForm from './ArticleEditForm'
 
@@ -66,6 +66,7 @@ export default async function ArticleEditPage({ params }: Props) {
                 initialContent={article.content ?? ''}
                 initialReadTime={article.readTime}
                 versioning={versioning}
+                imageLibrary={isImageLibraryEnabled()}
               />
             </div>
             {versioning && (

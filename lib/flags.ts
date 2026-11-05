@@ -9,3 +9,12 @@
 export function isVersioningEnabled(): boolean {
   return process.env.KB_VERSIONING_ENABLED === 'true'
 }
+
+/**
+ * "Choose from library" on the article Edit page's hero image field. Needs the
+ * nuvho_kb.image_library table (scripts/008_image_library.sql) and at least one run of
+ * scripts/import-image-library.mjs — switch on only after both.
+ */
+export function isImageLibraryEnabled(): boolean {
+  return process.env.KB_IMAGE_LIBRARY_ENABLED === 'true'
+}
