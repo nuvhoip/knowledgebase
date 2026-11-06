@@ -1085,3 +1085,64 @@
 .nw-hero { overflow: visible; z-index: 2; }
 .nw-hero:has(.nw-suggest) { z-index: 35; }
 .nw-hero__bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+
+/* ── Image library picker (components/ImageLibraryPicker.tsx) ─────────────────
+   Edit page hero field → "Choose from library". Modal at 1120 (wider than the §9 520
+   default: a photo grid and a scaled page preview need the room). */
+.na-modal--library { max-width: 1120px; height: min(860px, calc(100vh - 48px)); display: flex; flex-direction: column; }
+.na-modal--library .na-modal__sub { max-width: 720px; white-space: normal; }
+.na-modal__foot--library { padding-top: 16px; border-top: 1px solid var(--nv-border-hair); justify-content: space-between; }
+.na-modal__foot--library:has(> :only-child) { justify-content: flex-end; }
+
+.na-library { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+.na-library__filters { overflow-y: auto; padding: 20px 12px 20px 20px; border-right: 1px solid var(--nv-border-hair); display: flex; flex-direction: column; gap: 4px; }
+.na-library__group { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+.na-library__group-title { font: 600 11px/16px var(--nv-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--nv-text-meta); margin: 0 0 4px 10px; }
+.na-library__filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; font: 500 13.5px/1.35 var(--nv-font-body); color: var(--nv-text-body); text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.na-library__filter:hover { background: rgba(40,104,127,.06); }
+.na-library__filter.is-active { background: rgba(40,104,127,.1); color: var(--nv-blue-slate); font-weight: 600; }
+.na-library__count { font: 400 12px/1 var(--nv-font-body); color: var(--nv-text-meta); }
+
+.na-library__main { min-height: 0; display: flex; flex-direction: column; }
+.na-library__toolbar { display: flex; gap: 12px; padding: 20px 24px 16px; }
+.na-library__toolbar .na-input { flex: 1; }
+.na-library__select { display: none; }
+.na-library__grid { list-style: none; margin: 0; padding: 0 24px 24px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 16px; align-content: start; }
+.na-library__item { position: relative; display: flex; flex-direction: column; width: 100%; padding: 0; border: 1px solid var(--nv-border-hair); border-radius: 10px; overflow: hidden; background: var(--nv-white); cursor: pointer; text-align: left; transition: border-color .15s ease, box-shadow .15s ease; }
+.na-library__item:hover { border-color: var(--nv-tropical-teal); }
+.na-library__item:focus-visible { outline: 2px solid var(--nv-blue-slate); outline-offset: 2px; }
+.na-library__item.is-current { border-color: var(--nv-blue-slate); box-shadow: inset 0 0 0 1px var(--nv-blue-slate); }
+.na-library__item img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; display: block; background: var(--nv-surface-slot); }
+.na-library__caption { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; min-width: 0; }
+.na-library__name { font: 500 12.5px/1.35 var(--nv-font-body); color: var(--nv-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-library__folder { font: 400 11.5px/1.35 var(--nv-font-body); color: var(--nv-text-meta); }
+.na-library__badge { position: absolute; top: 8px; left: 8px; height: 22px; }
+.na-library__empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 48px 24px; font: 400 14px/1.5 var(--nv-font-body); color: var(--nv-text-muted); text-align: center; }
+
+.na-library-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px 24px 20px; }
+.na-library-preview__bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.na-library-preview__meta { margin: 0; flex: 1; min-width: 0; font: 400 12.5px/1.45 var(--nv-font-body); color: var(--nv-text-muted); overflow-wrap: anywhere; }
+.na-library-preview__meta strong { color: var(--nv-text-body); font-weight: 600; }
+.na-library-preview__stage { position: relative; flex: 1; min-height: 0; border-radius: 10px; background: var(--nv-surface-band); border: 1px solid var(--nv-border-hair); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; align-items: flex-start; justify-content: center; }
+.na-library-preview__device { position: relative; overflow: hidden; flex: none; background: var(--nv-white); }
+.na-library-preview__stage--mobile .na-library-preview__device { margin: 16px 0; border-radius: 18px; box-shadow: 0 0 0 8px #1E282D, 0 12px 32px rgba(30,40,45,.25); }
+.na-library-preview__device iframe { border: 0; display: block; transform-origin: 0 0; pointer-events: none; transition: opacity .2s ease; }
+.na-library-preview__loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font: 400 13px/1 var(--nv-font-body); color: var(--nv-text-muted); }
+
+.na-segmented { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--nv-surface-band); border: 1px solid var(--nv-border-hair); }
+.na-segmented__btn { height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; font: 600 13px/1 var(--nv-font-body); color: var(--nv-text-muted); cursor: pointer; transition: background-color .15s ease, color .15s ease; }
+.na-segmented__btn.is-active { background: var(--nv-white); color: var(--nv-blue-slate); box-shadow: 0 1px 2px rgba(30,40,45,.12); }
+
+/* Hero preview page (edit/hero-preview) — rendered inside the picker's iframe */
+.nw-preview-label { font: 600 11px/16px var(--nv-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--nv-text-meta); margin: 48px 0 16px; }
+
+@media (max-width: 900px) {
+  .na-overlay:has(.na-modal--library) { padding: 0; }
+  .na-modal--library { height: 100vh; height: 100dvh; max-width: none; border-radius: 0; }
+  .na-library { grid-template-columns: minmax(0, 1fr); }
+  .na-library__filters { display: none; }
+  .na-library__select { display: block; flex: 0 0 auto; max-width: 46%; }
+  .na-library__toolbar { padding: 16px; flex-wrap: wrap; }
+  .na-library__grid { padding: 0 16px 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .na-library-preview { padding: 14px 16px 16px; }
+}

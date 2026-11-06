@@ -6,6 +6,7 @@ import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
 import { getCategoryBySlug, getArticleBySlug } from '@/lib/data'
 import { isVersioningEnabled } from '@/lib/flags'
+import { hasLibraryImages } from '@/lib/imageLibraryDb'
 import VersionHistory from '@/components/admin/VersionHistory'
 import ArticleEditForm from './ArticleEditForm'
 
@@ -28,9 +29,11 @@ export default async function ArticleEditPage({ params }: Props) {
     redirect('/login')
   }
 
-  const [article, category] = await Promise.all([
+  // "Choose from library" shows only once the image library has photos (no env flag)
+  const [article, category, imageLibrary] = await Promise.all([
     getArticleBySlug(params.categorySlug, params.slug),
     getCategoryBySlug(params.categorySlug),
+    hasLibraryImages(),
   ])
   if (!article || !category) notFound()
 
@@ -66,6 +69,7 @@ export default async function ArticleEditPage({ params }: Props) {
                 initialContent={article.content ?? ''}
                 initialReadTime={article.readTime}
                 versioning={versioning}
+                imageLibrary={imageLibrary}
               />
             </div>
             {versioning && (

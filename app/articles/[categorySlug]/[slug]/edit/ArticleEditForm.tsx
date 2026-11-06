@@ -18,6 +18,8 @@ interface Props {
   initialReadTime: number
   /** KB_VERSIONING_ENABLED (from the server page): shows the optional change-summary field. */
   versioning?: boolean
+  /** True once the image library has imported photos (server page checks): adds "Choose from library" to the hero field. */
+  imageLibrary?: boolean
 }
 
 // Fields follow the Figma field law (browser-app §5); buttons the Figma Button (§4).
@@ -27,6 +29,7 @@ interface Props {
 // to /api/admin/uploads and referenced by URL. The server sanitises on save (lib/sanitize.ts).
 export default function ArticleEditForm({
   categorySlug, slug, initialTitle, initialDescription, initialContent, initialReadTime, versioning = false,
+  imageLibrary = false,
 }: Props) {
   const router = useRouter()
   const initial = extractHero(initialContent)
@@ -41,6 +44,17 @@ export default function ArticleEditForm({
   const [error, setError] = useState('')
   const [syncOpen, setSyncOpen] = useState(false)
   const [changeSummary, setChangeSummary] = useState('')
+
+  // Image library preview: the hero-preview page renders the real hero + tile with the
+  // unsaved title, description and alt text from this form.
+  const library = imageLibrary
+    ? {
+        previewUrl: (src: string) =>
+          `/articles/${categorySlug}/${slug}/edit/hero-preview?${new URLSearchParams({
+            src, alt: heroAlt, title, desc: description,
+          })}`,
+      }
+    : undefined
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -90,7 +104,12 @@ export default function ArticleEditForm({
           value={heroSrc}
           onChange={setHeroSrc}
           disabled={saving}
-          help="Shown full-width behind the title under the Tropical Teal veil, and on article tiles. Upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Leave blank for the gradient hero."
+          library={library}
+          help={
+            library
+              ? 'Shown full-width behind the title under the Tropical Teal veil, and on article tiles. Choose a photo from the Marketing image library (with a preview of the page), upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Leave blank for the gradient hero.'
+              : 'Shown full-width behind the title under the Tropical Teal veil, and on article tiles. Upload a JPG, PNG, WebP or GIF up to 10 MB, or paste a URL. Leave blank for the gradient hero.'
+          }
         />
       </div>
 
