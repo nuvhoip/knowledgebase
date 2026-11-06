@@ -18,7 +18,7 @@ interface Props {
   initialReadTime: number
   /** KB_VERSIONING_ENABLED (from the server page): shows the optional change-summary field. */
   versioning?: boolean
-  /** KB_IMAGE_LIBRARY_ENABLED (from the server page): adds "Choose from library" to the hero field. */
+  /** True once the image library has imported photos (server page checks): adds "Choose from library" to the hero field. */
   imageLibrary?: boolean
 }
 

@@ -5,8 +5,9 @@ Editors browse the Marketing photo library, open a photo to see the **real artic
 article's (unsaved) title and description at desktop or phone size, then confirm. Nothing is saved until
 "Save changes".
 **Branch:** `feature/kb-image-library-picker`
-**Flag:** `KB_IMAGE_LIBRARY_ENABLED` (off by default, read at runtime), so the code can merge before the steps
-below are done.
+**Switch-on:** no env setting. The Edit page checks the database on each load and shows "Choose from library"
+only once `nuvho_kb.image_library` exists and holds at least one active photo. Until the steps below are done
+the Edit page looks exactly as before, so the code can merge first.
 
 ## Decisions (5 Nov 2026)
 
@@ -61,8 +62,9 @@ All SQL targets the KB database on `nuvho-vectordb` (209.38.90.132), database `n
    **Storage:** expect roughly 0.3–0.8 MB per photo at 2400px plus ~30 KB per thumbnail, so about
    **70–190 MB** for the current 229 photos, in the same database as the vector DBs. Check free disk on the
    droplet first. `--width 1920` roughly halves it if needed.
-5. **Switch on:** set `KB_IMAGE_LIBRARY_ENABLED=true` in the App Platform component env (no rebuild needed),
-   then open any article's Edit page → Hero image → **Choose from library**.
+5. **Check:** nothing to switch on. Once the import has finished, open any article's Edit page → Hero image →
+   **Choose from library**. (To hide the option again, mark the rows inactive:
+   `UPDATE nuvho_kb.image_library SET active = false;`, and re-run the import to bring them back.)
 
 **When marketing adds or replaces photos:** repeat steps 3–4. Only new or changed files are processed.
 

@@ -1,6 +1,7 @@
 // Feature flags. Read at runtime from the environment (like the AZURE_* settings), so they
 // can be switched on App Platform without a rebuild. Off unless set to exactly "true".
 // Server-side only: pages pass the result down to client components as a prop.
+// (The image library has no flag: it appears once photos are imported — lib/imageLibraryDb.ts.)
 
 /**
  * Article version history and restore (Pass 4). Needs the nuvho_kb.article_versions table
@@ -8,13 +9,4 @@
  */
 export function isVersioningEnabled(): boolean {
   return process.env.KB_VERSIONING_ENABLED === 'true'
-}
-
-/**
- * "Choose from library" on the article Edit page's hero image field. Needs the
- * nuvho_kb.image_library table (scripts/008_image_library.sql) and at least one run of
- * scripts/import-image-library.mjs — switch on only after both.
- */
-export function isImageLibraryEnabled(): boolean {
-  return process.env.KB_IMAGE_LIBRARY_ENABLED === 'true'
 }

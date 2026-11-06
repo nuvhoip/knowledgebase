@@ -104,7 +104,8 @@ article hero and tile (desktop / mobile) before it is applied; nothing is saved 
 - `scripts/import-image-library.mjs "<path>/Image Repository" --dry-run | --yes` resizes every photo to a
   2400px JPEG plus a 480px thumbnail and records it. Re-run whenever marketing adds photos; unchanged files
   are skipped and removed ones are hidden.
-- `KB_IMAGE_LIBRARY_ENABLED=true` shows the option (off by default).
+- No env setting: the option appears by itself once the table exists and the import has stored at least one
+  photo (`hasLibraryImages()` in `lib/imageLibraryDb.ts`). Until then the Edit page is unchanged.
 
 Rollout steps: [docs/handover/2026-11-kb-image-library.md](docs/handover/2026-11-kb-image-library.md).
 
