@@ -5,6 +5,7 @@ import Footer from '@/components/Footer'
 import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
 import { hasLibraryImages } from '@/lib/imageLibraryDb'
+import { isTagsEnabled } from '@/lib/flags'
 import AdminDashboard from './AdminDashboard'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,7 @@ export default async function AdminPage() {
               Content index
             </Link>
           </div>
-          <AdminDashboard imageLibrary={imageLibrary} />
+          <AdminDashboard imageLibrary={imageLibrary} tagsEnabled={isTagsEnabled()} />
         </div>
       </main>
       <Footer />

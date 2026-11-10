@@ -1,5 +1,6 @@
 import pool from './db'
-import { Article, Category, SearchDocument, Subcategory, Visibility } from './types'
+import { Article, Category, SearchDocument, Subcategory, Tag, Visibility } from './types'
+import { isTagsEnabled } from './flags'
 
 // ─── DB row types ────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ interface ArticleRow {
   category_slug: string
   subcategory_slug: string
   updated_at: string
+  updated_at_iso: string
   read_time: number
   featured: boolean
   status: 'pending' | 'published'
@@ -45,6 +47,7 @@ interface ArticleRow {
 const ARTICLE_SELECT = `
   SELECT a.slug, a.title, a.description, a.content, a.category_slug, a.subcategory_slug,
          to_char(a.updated_at, 'Mon DD, YYYY') AS updated_at,
+         to_char(a.updated_at, 'YYYY-MM-DD') AS updated_at_iso,
          a.read_time, a.featured, a.status, a.visibility,
          c.visibility AS category_visibility,
          s.visibility AS subcategory_visibility,
@@ -81,11 +84,14 @@ function mapArticle(row: ArticleRow): Article {
     categorySlug: row.category_slug,
     subcategorySlug: row.subcategory_slug,
     updatedAt: row.updated_at,
+    updatedAtIso: row.updated_at_iso,
     readTime: row.read_time,
     featured: row.featured,
     status: row.status,
     visibility: row.visibility,
     effectiveVisibility: resolveVisibility(row.visibility, row.subcategory_visibility, row.category_visibility),
+    categoryTitle: row.category_title,
+    subcategoryTitle: row.subcategory_title,
   }
 }
 
@@ -243,10 +249,118 @@ export async function getSearchCorpus(): Promise<SearchDocument[]> {
      WHERE a.status = 'published'
      ORDER BY a.category_slug, a.sort_order, a.title`
   )
+  const tagNames = isTagsEnabled() ? await getTagNamesByArticle().catch(() => new Map<string, string>()) : null
   return result.rows.map(row => ({
     article: mapArticle(row),
     categoryTitle: row.category_title,
     subcategoryTitle: row.subcategory_title,
+    tagNames: tagNames?.get(`${row.category_slug}/${row.slug}`) ?? '',
+  }))
+}
+
+// ─── Tags (KB_TAGS_ENABLED — callers check the flag) ─────────────────────────
+//
+// Tables: nuvho_kb.topics (the tag) and nuvho_kb.article_topics (article ↔ tag). See lib/tags.ts.
+
+/** Effective visibility in SQL, same chain as resolveVisibility(). */
+const EFFECTIVE_VISIBILITY = `COALESCE(a.visibility, s.visibility, c.visibility, 'public')`
+
+/** "category/slug" → space-separated tag names, for the search index. */
+async function getTagNamesByArticle(): Promise<Map<string, string>> {
+  const result = await pool.query<{ key: string; names: string }>(
+    `SELECT a.category_slug || '/' || a.slug AS key, string_agg(t.name, ' ' ORDER BY t.name) AS names
+     FROM nuvho_kb.article_topics at
+     JOIN nuvho_kb.topics t ON t.id = at.topic_id
+     JOIN nuvho_kb.articles a ON a.id = at.article_id
+     WHERE a.status = 'published'
+     GROUP BY 1`
+  )
+  return new Map(result.rows.map(r => [r.key, r.names]))
+}
+
+/** Tags of one article (any status), in display order. */
+export async function getArticleTags(categorySlug: string, slug: string): Promise<Tag[]> {
+  const result = await pool.query<Tag>(
+    `SELECT t.slug, t.name
+     FROM nuvho_kb.article_topics at
+     JOIN nuvho_kb.topics t ON t.id = at.topic_id
+     JOIN nuvho_kb.articles a ON a.id = at.article_id
+     WHERE a.category_slug = $1 AND a.slug = $2
+     ORDER BY t.sort_order, t.name`,
+    [categorySlug, slug]
+  )
+  return result.rows
+}
+
+export async function getTagBySlug(slug: string): Promise<Tag | null> {
+  const result = await pool.query<Tag>('SELECT slug, name FROM nuvho_kb.topics WHERE slug = $1', [slug])
+  return result.rows[0] ?? null
+}
+
+/** PUBLISHED articles carrying a tag, newest first. Visibility is left to the caller (canView). */
+export async function getArticlesByTag(tagSlug: string): Promise<Article[]> {
+  const result = await pool.query<ArticleRow>(
+    `${ARTICLE_SELECT}
+     JOIN nuvho_kb.article_topics at ON at.article_id = a.id
+     JOIN nuvho_kb.topics t ON t.id = at.topic_id
+     WHERE t.slug = $1 AND a.status = 'published'
+     ORDER BY a.updated_at DESC, a.title`,
+    [tagSlug]
+  )
+  return result.rows.map(mapArticle)
+}
+
+/**
+ * PUBLISHED articles sharing the most tags with this one (ties: same category first, then
+ * newest). Visibility is left to the caller.
+ */
+export async function getRelatedArticles(categorySlug: string, slug: string, limit = 6): Promise<Article[]> {
+  const result = await pool.query<ArticleRow>(
+    `WITH me AS (
+       SELECT a.id, a.category_slug FROM nuvho_kb.articles a WHERE a.category_slug = $1 AND a.slug = $2
+     ), shared AS (
+       SELECT other.article_id, COUNT(*) AS n
+       FROM nuvho_kb.article_topics mine
+       JOIN me ON me.id = mine.article_id
+       JOIN nuvho_kb.article_topics other ON other.topic_id = mine.topic_id AND other.article_id <> me.id
+       GROUP BY other.article_id
+     )
+     ${ARTICLE_SELECT}
+     JOIN shared ON shared.article_id = a.id
+     WHERE a.status = 'published'
+     ORDER BY shared.n DESC, (a.category_slug = $1) DESC, a.updated_at DESC, a.title
+     LIMIT $3`,
+    [categorySlug, slug, limit]
+  )
+  return result.rows.map(mapArticle)
+}
+
+export interface TagUsage extends Tag {
+  /** Published articles that anyone can read. */
+  publicCount: number
+  /** All published articles, private included. */
+  totalCount: number
+}
+
+/** Every tag used by at least one published article, most used first. */
+export async function getTagUsage(): Promise<TagUsage[]> {
+  const result = await pool.query<{ slug: string; name: string; public_count: string; total_count: string }>(
+    `SELECT t.slug, t.name,
+            COUNT(*) FILTER (WHERE ${EFFECTIVE_VISIBILITY} = 'public') AS public_count,
+            COUNT(*) AS total_count
+     FROM nuvho_kb.topics t
+     JOIN nuvho_kb.article_topics at ON at.topic_id = t.id
+     JOIN nuvho_kb.articles a ON a.id = at.article_id AND a.status = 'published'
+     JOIN nuvho_kb.categories c ON c.slug = a.category_slug
+     JOIN nuvho_kb.subcategories s ON s.slug = a.subcategory_slug
+     GROUP BY t.id
+     ORDER BY COUNT(*) DESC, t.name`
+  )
+  return result.rows.map(r => ({
+    slug: r.slug,
+    name: r.name,
+    publicCount: Number(r.public_count),
+    totalCount: Number(r.total_count),
   }))
 }
 

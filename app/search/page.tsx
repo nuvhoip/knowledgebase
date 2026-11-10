@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Search — Nuvho Knowledge Base',
+  // Result pages are thin, duplicate content: keep them out of indexes but follow the links
+  robots: { index: false, follow: true },
 }
 
 interface Props {

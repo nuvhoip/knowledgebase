@@ -6,6 +6,8 @@ import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import EmptyState from '@/components/EmptyState'
+import JsonLd from '@/components/JsonLd'
+import { SITE_NAME, absoluteUrl, articlePath, collectionJsonLd } from '@/lib/seo'
 import { getCategoryBySlug, canView } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 
@@ -21,9 +23,14 @@ interface Props {
 export async function generateMetadata({ params }: Props) {
   const category = await getCategoryBySlug(params.slug)
   if (!category) return {}
+  const url = absoluteUrl(`/categories/${category.slug}`)
   return {
-    title: `${category.title} — Nuvho Knowledge Base`,
+    title: `${category.title} — ${SITE_NAME}`,
     description: category.description,
+    alternates: { canonical: url },
+    ...(category.visibility === 'public'
+      ? { openGraph: { type: 'website', url, title: `${category.title} — ${SITE_NAME}`, description: category.description, siteName: SITE_NAME, locale: 'en_AU' } }
+      : { robots: { index: false, follow: false } }),
   }
 }
 
@@ -51,9 +58,20 @@ export default async function CategoryPage({ params }: Props) {
     .filter((sub, i) => canView(category.subcategories[i].visibility ?? category.visibility, hasSession) && sub.articles.length > 0)
 
   const total = groups.reduce((n, g) => n + g.articles.length, 0)
+  const publicArticles = category.visibility === 'public'
+    ? category.articles.filter(a => a.effectiveVisibility === 'public')
+    : []
 
   return (
     <div className="flex flex-col min-h-screen">
+      {publicArticles.length > 0 && (
+        <JsonLd data={collectionJsonLd(
+          `/categories/${category.slug}`,
+          `${category.title} — ${SITE_NAME}`,
+          category.description,
+          publicArticles.map(a => ({ title: a.title, path: articlePath(a.categorySlug, a.slug) })),
+        )} />
+      )}
       <SiteHeader />
       <main className="flex-1">
         <InnerHero

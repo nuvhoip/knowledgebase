@@ -5,10 +5,17 @@ import ArticleTile from '@/components/ArticleTile'
 import TopicGrid from '@/components/TopicGrid'
 import ContactBand from '@/components/ContactBand'
 import Footer from '@/components/Footer'
+import JsonLd from '@/components/JsonLd'
 import { getFeaturedArticles, getCategories, canView } from '@/lib/data'
+import { SITE_URL, siteJsonLd } from '@/lib/seo'
 import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata = {
+  alternates: { canonical: `${SITE_URL}/` },
+  openGraph: { type: 'website', url: `${SITE_URL}/`, locale: 'en_AU' },
+}
 
 // Home follows the Figma Blog/Resources anatomy (793:2): photo hero (with search) →
 // featured band (#F6F6F6) → latest articles (white) → topic grid (service cards on
@@ -30,6 +37,7 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <JsonLd data={siteJsonLd()} />
       <SiteHeader />
       <main className="flex-1">
         <HomeHero />

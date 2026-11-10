@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { isVersioningEnabled } from '@/lib/flags'
 import { snapshotArticle, withDb } from '@/lib/versions'
+import { normalizeTags, setArticleTags } from '@/lib/tags'
 
 function slugify(text: string): string {
   return text
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { title, description, categorySlug, subcategorySlug, content, readTime, featured, visibility } = body
+    const { title, description, categorySlug, subcategorySlug, content, readTime, featured, visibility, tags } = body
 
     if (!title?.trim() || !description?.trim() || !categorySlug?.trim() || !subcategorySlug?.trim()) {
       return NextResponse.json({ error: 'Title, description, category and sub-category are required.' }, { status: 400 })
@@ -101,7 +102,8 @@ export async function POST(req: NextRequest) {
     // KB_VERSIONING_ENABLED: the insert and its first version commit together.
     // Flag off: the same insert as before, straight on the pool.
     const versioning = isVersioningEnabled()
-    await withDb(pool, versioning, async db => {
+    const tagList = normalizeTags(tags)
+    await withDb(pool, versioning || tagList.length > 0, async db => {
       const inserted = await db.query(
         `INSERT INTO nuvho_kb.articles
            (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
         [slug, title.trim(), description.trim(), categorySlug.trim(), subcategorySlug.trim(), sanitizeArticleHtml(content),
          Number(readTime) || 5, Boolean(featured), order, visibility ?? null]
       )
+      if (tagList.length) await setArticleTags(db, inserted.rows[0].id, tagList)
       if (versioning) {
         await snapshotArticle(db, inserted.rows[0].id, { source: 'create', changedBy: session.email, changeSummary: 'Created' })
       }

@@ -1,5 +1,7 @@
 export type Visibility = 'public' | 'private'
 
+export type { Tag } from './tags'
+
 export interface Article {
   slug: string
   title: string
@@ -8,6 +10,8 @@ export interface Article {
   categorySlug: string
   subcategorySlug: string
   updatedAt: string
+  /** updated_at as YYYY-MM-DD, for <time dateTime>, the sitemap and JSON-LD. */
+  updatedAtIso: string
   readTime: number // minutes
   featured?: boolean
   status: 'pending' | 'published'
@@ -15,6 +19,8 @@ export interface Article {
   visibility: Visibility | null
   /** Resolved visibility after applying the inheritance chain. Always 'public' or 'private'. */
   effectiveVisibility: Visibility
+  categoryTitle?: string
+  subcategoryTitle?: string
 }
 
 export interface Subcategory {
@@ -46,6 +52,8 @@ export interface SearchDocument {
   article: Article
   categoryTitle: string
   subcategoryTitle: string
+  /** Tag names, space-separated (empty unless KB_TAGS_ENABLED). */
+  tagNames?: string
 }
 
 /** A search-as-you-type match — the lightweight payload of /api/search?suggest=1. */

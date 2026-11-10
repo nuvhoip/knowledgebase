@@ -76,7 +76,8 @@ async function buildIndex(): Promise<Fuse<IndexedDocument>> {
   const docs = corpus.map(doc => ({
     title: doc.article.title,
     description: doc.article.description,
-    topics: `${doc.categoryTitle} ${doc.subcategoryTitle}`,
+    // Category, sub-category and (KB_TAGS_ENABLED) tag names
+    topics: `${doc.categoryTitle} ${doc.subcategoryTitle} ${doc.tagNames ?? ''}`.trim(),
     text: htmlToText(doc.article.content),
     doc,
   }))

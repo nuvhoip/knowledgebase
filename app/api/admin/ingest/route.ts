@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { isVersioningEnabled } from '@/lib/flags'
 import { snapshotArticle, withDb } from '@/lib/versions'
+import { normalizeTags, setArticleTags } from '@/lib/tags'
 
 /**
  * POST /api/admin/ingest
@@ -26,6 +27,7 @@ import { snapshotArticle, withDb } from '@/lib/versions'
  *   readTime     number  optional  (minutes, default 5)
  *   sourceId     string  optional  (vector source_id for cross-reference)
  *   sourceTier   string  optional  ('domain'|'internal'|'client'|'confidential')
+ *   tags         string[] optional (or a comma-separated string; up to 12, stored in nuvho_kb.topics)
  *   ingestToVector boolean optional (default false — set true to also embed)
  */
 
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
     sourceId,
     sourceTier,
     ingestToVector = false,
+    tags,
     // Client tier extras — hgid is required when sourceTier is 'client'
     hgid,
     pid,
@@ -164,12 +167,13 @@ export async function POST(req: NextRequest) {
     [categorySlug.trim()]
   )
   const order = maxRes.rows[0].next
+  const tagList = normalizeTags(tags)
 
   try {
-    // KB_VERSIONING_ENABLED: the insert and its first version commit together.
-    // Flag off: the same insert as before, straight on the pool.
+    // KB_VERSIONING_ENABLED: the insert and its first version commit together (and its tags,
+    // when any were sent). Otherwise: the same insert as before, straight on the pool.
     const versioning = isVersioningEnabled()
-    await withDb(pool, versioning, async db => {
+    await withDb(pool, versioning || tagList.length > 0, async db => {
       const inserted = await db.query(
         `INSERT INTO nuvho_kb.articles
            (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
@@ -187,6 +191,7 @@ export async function POST(req: NextRequest) {
           visibility ?? null,
         ]
       )
+      if (tagList.length) await setArticleTags(db, inserted.rows[0].id, tagList)
       if (versioning) {
         await snapshotArticle(db, inserted.rows[0].id, {
           source: 'ingest',
@@ -239,6 +244,7 @@ export async function POST(req: NextRequest) {
             ingested_by: session.email,
             ingested_at: new Date().toISOString(),
             kb_status: 'pending',
+            ...(tagList.length ? { tags: tagList.map(t => t.name) } : {}),
           }
 
           let vectorPool: Pool | null = null

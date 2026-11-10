@@ -24,6 +24,13 @@ interface Props {
   /** For the library's hero preview: the article's resolved visibility and last-updated date. */
   effectiveVisibility?: 'public' | 'private'
   updatedAt?: string
+  /** Current tag names. Undefined hides the Tags field (KB_TAGS_ENABLED off, or tags failed to load). */
+  initialTags?: string[]
+}
+
+/** "Booking Engine, SEO" → ['Booking Engine', 'SEO'] (the server cleans and de-duplicates). */
+function parseTags(text: string): string[] {
+  return text.split(/[,;\n]/).map(t => t.trim()).filter(Boolean)
 }
 
 // Fields follow the Figma field law (browser-app §5); buttons the Figma Button (§4).
@@ -33,7 +40,7 @@ interface Props {
 // to /api/admin/uploads and referenced by URL. The server sanitises on save (lib/sanitize.ts).
 export default function ArticleEditForm({
   categorySlug, slug, initialTitle, initialDescription, initialContent, initialReadTime, versioning = false,
-  imageLibrary = false, effectiveVisibility = 'public', updatedAt,
+  imageLibrary = false, effectiveVisibility = 'public', updatedAt, initialTags,
 }: Props) {
   const router = useRouter()
   const initial = extractHero(initialContent)
@@ -48,6 +55,8 @@ export default function ArticleEditForm({
   const [error, setError] = useState('')
   const [syncOpen, setSyncOpen] = useState(false)
   const [changeSummary, setChangeSummary] = useState('')
+  const [tagText, setTagText] = useState((initialTags ?? []).join(', '))
+  const tagsField = initialTags !== undefined
 
   // Image library preview: the hero-preview page renders the real hero + tile with the
   // unsaved title, description and alt text from this form.
@@ -70,9 +79,12 @@ export default function ArticleEditForm({
       const res = await fetch(`/api/articles/${categorySlug}/${slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          versioning ? { title, description, content, readTime, changeSummary } : { title, description, content, readTime }
-        ),
+        body: JSON.stringify({
+          title, description, content, readTime,
+          ...(versioning ? { changeSummary } : {}),
+          // Only sent when the field is shown, so a save never wipes tags it didn't load
+          ...(tagsField ? { tags: parseTags(tagText) } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -132,6 +144,22 @@ export default function ArticleEditForm({
           The <strong>&lt;&gt;</strong> button opens the raw HTML for anything the toolbar does not cover.
         </span>
       </div>
+
+      {tagsField && (
+        <div className="na-field">
+          <label className="na-label" htmlFor="tags">Tags <small>optional</small></label>
+          <input id="tags" type="text" value={tagText} onChange={e => setTagText(e.target.value)} className="na-input" placeholder="e.g. Booking Engine, Rate Parity, Channel Manager" />
+          {parseTags(tagText).length > 0 && (
+            <div className="na-tag-preview" aria-hidden="true">
+              {parseTags(tagText).slice(0, 12).map((t, i) => <span key={`${t}-${i}`} className="nw-tag">{t}</span>)}
+            </div>
+          )}
+          <span className="na-help">
+            Separate with commas, up to 12. Use the words a hotelier would search for; reuse existing tags where they fit.
+            Tags link related articles and feed search engines and AI answers.
+          </span>
+        </div>
+      )}
 
       <div className="na-field na-field--sm">
         <label className="na-label" htmlFor="readTime">Read time (minutes)</label>

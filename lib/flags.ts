@@ -10,3 +10,13 @@
 export function isVersioningEnabled(): boolean {
   return process.env.KB_VERSIONING_ENABLED === 'true'
 }
+
+/**
+ * Article tags shown to readers: chips on articles, /tags/[slug] pages, related articles,
+ * tags in search, the sitemap and JSON-LD, plus the Tags field in the editor. Uses
+ * nuvho_kb.topics / nuvho_kb.article_topics (handover C, applied 30 Oct 2026). Tags sent by
+ * Claude are stored whenever those tables exist, even while this flag is off (lib/tags.ts).
+ */
+export function isTagsEnabled(): boolean {
+  return process.env.KB_TAGS_ENABLED === 'true'
+}

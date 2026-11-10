@@ -3,6 +3,7 @@ import pool from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { isVersioningEnabled } from '@/lib/flags'
 import { ensureBaseline, lockArticle, snapshotArticle } from '@/lib/versions'
+import { hasTagTables } from '@/lib/tags'
 
 interface RouteParams {
   params: { categorySlug: string; slug: string }
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
   try {
     const result = await pool.query(
-      `SELECT slug, title, description, category_slug, subcategory_slug, content,
+      `SELECT id, slug, title, description, category_slug, subcategory_slug, content,
               read_time, featured, status, visibility, updated_at
        FROM nuvho_kb.articles
        WHERE category_slug = $1 AND slug = $2`,
@@ -28,7 +29,18 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     if (result.rowCount === 0) {
       return NextResponse.json({ error: 'Article not found.' }, { status: 404 })
     }
-    return NextResponse.json(result.rows[0])
+    const { id, ...article } = result.rows[0]
+    // Tag names for the admin editor's Tags field; null when the tag tables don't exist
+    let tags: string[] | null = null
+    if (await hasTagTables(pool)) {
+      const t = await pool.query(
+        `SELECT t.name FROM nuvho_kb.article_topics at JOIN nuvho_kb.topics t ON t.id = at.topic_id
+         WHERE at.article_id = $1 ORDER BY t.sort_order, t.name`,
+        [id]
+      )
+      tags = t.rows.map(r => r.name)
+    }
+    return NextResponse.json({ ...article, tags })
   } catch (err) {
     console.error('[admin/articles GET one]', err)
     return NextResponse.json({ error: 'Failed to fetch article.' }, { status: 500 })

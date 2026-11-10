@@ -117,6 +117,42 @@ article hero and tile (desktop / mobile) before it is applied; nothing is saved 
 
 Rollout steps: [docs/handover/2026-11-kb-image-library.md](docs/handover/2026-11-kb-image-library.md).
 
+## Tags, SEO and GEO
+
+**Tags** (UI name; stored in `nuvho_kb.topics` / `nuvho_kb.article_topics`, see `scripts/009_tags.sql`)
+are cross-cutting labels, many per article. A category is still where an article lives.
+
+- **Where tags come from:** the editor's Tags field, `POST /api/admin/ingest` (`tags`), and
+  Sync from Claude, which reads `metadata.tags` written by the `nuvho-knowledge-save` skill
+  (1.6.0+). The skill recommends tags from the article and lets the user change them first.
+  `GET /api/tags` lists the tags in use so the skill reuses them instead of making near-duplicates.
+- **`KB_TAGS_ENABLED=true`** shows them to readers: chips under the article lede, `/tags/[slug]`
+  pages, "Related articles" (shared tags), tag names in search, tag pages in the sitemap and
+  tags as `keywords` / `article:tag` / JSON-LD `about`. Tags sent by Claude are stored even while
+  the flag is off (whenever the tables exist), so nothing is lost before switch-on.
+- Tag pages with fewer than 2 public articles are `noindex, follow` and left out of the sitemap
+  (thin content).
+
+**SEO** — every page has a canonical URL; articles have Open Graph `article` tags, Twitter cards,
+`<time dateTime>` and JSON-LD (`TechArticle`, `BreadcrumbList`, plus `FAQPage` when an article
+has 2+ question headings ending in "?"). Categories and tag pages carry `CollectionPage` JSON-LD,
+the home page `WebSite` + `Organization`. `/sitemap.xml` lists public categories, articles and tag
+pages; `/robots.txt` keeps admin, API, auth, search and edit pages out. Members-only articles are
+`noindex` and never appear in the sitemap, JSON-LD or llms files.
+
+**GEO (generative engine optimisation)** — so AI answer engines (ChatGPT search, Perplexity,
+Google AI Overviews, Claude, Copilot) can find, read and cite the KB:
+- `/llms.txt` (llmstxt.org index of public articles by category) and `/llms-full.txt` (every public
+  article as markdown, each with its canonical URL and last-updated date).
+- `robots.txt` names the AI search and assistant crawlers explicitly (list in `lib/seo.ts`
+  `AI_CRAWLERS`). Training-only crawlers (GPTBot, CCBot, Google-Extended, Applebot-Extended) are
+  allowed too; remove them there to opt out of model training while staying in AI search.
+- Writing guidance (also in the skill): an answer-first description of 140–160 characters,
+  question-style headings for FAQs and troubleshooting, and specific tags.
+
+Pure helpers live in `lib/seo.ts` and `lib/tags.ts` (unit tested); crawler listings in
+`lib/publicIndex.ts`.
+
 ## Deploy
 
 Production (knowledge.nuvho.com) runs on **DigitalOcean App Platform** behind Cloudflare, built

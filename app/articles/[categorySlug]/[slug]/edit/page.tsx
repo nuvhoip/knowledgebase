@@ -4,8 +4,8 @@ import Footer from '@/components/Footer'
 import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
-import { getCategoryBySlug, getArticleBySlug } from '@/lib/data'
-import { isVersioningEnabled } from '@/lib/flags'
+import { getCategoryBySlug, getArticleBySlug, getArticleTags } from '@/lib/data'
+import { isTagsEnabled, isVersioningEnabled } from '@/lib/flags'
 import { hasLibraryImages } from '@/lib/imageLibraryDb'
 import VersionHistory from '@/components/admin/VersionHistory'
 import ArticleEditForm from './ArticleEditForm'
@@ -30,10 +30,13 @@ export default async function ArticleEditPage({ params }: Props) {
   }
 
   // "Choose from library" shows only once the image library has photos (no env flag)
-  const [article, category, imageLibrary] = await Promise.all([
+  // Tags field (KB_TAGS_ENABLED)
+  const tagsOn = isTagsEnabled()
+  const [article, category, imageLibrary, tags] = await Promise.all([
     getArticleBySlug(params.categorySlug, params.slug),
     getCategoryBySlug(params.categorySlug),
     hasLibraryImages(),
+    tagsOn ? getArticleTags(params.categorySlug, params.slug).catch(() => null) : Promise.resolve(null),
   ])
   if (!article || !category) notFound()
 
@@ -72,6 +75,7 @@ export default async function ArticleEditPage({ params }: Props) {
                 imageLibrary={imageLibrary}
                 effectiveVisibility={article.effectiveVisibility}
                 updatedAt={article.updatedAt}
+                initialTags={tags ? tags.map(t => t.name) : undefined}
               />
             </div>
             {versioning && (

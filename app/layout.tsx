@@ -42,6 +42,8 @@ export const metadata: Metadata = {
     title: 'Nuvho Knowledge Base',
     description: 'Find answers to your Nuvho questions.',
     siteName: 'Nuvho Knowledge Base',
+    locale: 'en_AU',
+    type: 'website',
   },
 }
 

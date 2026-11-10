@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { isVersioningEnabled } from '@/lib/flags'
 import { ensureBaseline, lockArticle, snapshotArticle, withDb } from '@/lib/versions'
+import { setArticleTags } from '@/lib/tags'
 
 interface RouteParams {
   params: { categorySlug: string; slug: string }
@@ -17,6 +18,8 @@ const VALID_VISIBILITY = ['public', 'private'] as const
  *  subcategorySlug may belong to a different category: the article then moves to that
  *  category (the trg_sync_article_category_slug trigger rewrites articles.category_slug).
  *  This is how admins file Claude Inbox submissions under a real category.
+ *  tags (string[] or comma-separated string) is optional — omit to leave the tags unchanged,
+ *  [] to remove them all. Sent by the editor only when KB_TAGS_ENABLED is on.
  *  Responds with the article's (possibly new) categorySlug and slug.
  */
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -28,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await req.json()
-    const { title, description, content, readTime, subcategorySlug, visibility, changeSummary } = body
+    const { title, description, content, readTime, subcategorySlug, visibility, changeSummary, tags } = body
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 })
@@ -55,7 +58,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // KB_VERSIONING_ENABLED: the save and its history snapshot commit together in one
     // transaction. Flag off: the same queries as before, straight on the pool.
     const versioning = isVersioningEnabled()
-    return await withDb(pool, versioning, async db => {
+    // Tags are written in the same transaction as the article
+    const updatingTags = tags !== undefined
+    return await withDb(pool, versioning || updatingTags, async db => {
       const articleId = versioning ? await lockArticle(db, params.categorySlug, params.slug) : null
 
       const before = await db.query(
@@ -96,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
              visibility       = CASE WHEN $6 THEN visibility ELSE $7 END,
              updated_at       = NOW()
          WHERE category_slug = $8 AND slug = $9
-         RETURNING slug, category_slug, subcategory_slug`,
+         RETURNING id, slug, category_slug, subcategory_slug`,
         [
           title.trim(),
           description.trim(),
@@ -113,6 +118,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       if (result.rowCount === 0) {
         return NextResponse.json({ error: 'Article not found.' }, { status: 404 })
       }
+
+      if (updatingTags) await setArticleTags(db, result.rows[0].id, tags)
 
       if (articleId) {
         await snapshotArticle(db, articleId, {

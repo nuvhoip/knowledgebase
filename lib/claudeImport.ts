@@ -1,6 +1,7 @@
 import pool from '@/lib/db'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { VALID_TIERS, Tier, isTierConfigured, getVectorPool } from '@/lib/vectorTiers'
+import { setArticleTags } from '@/lib/tags'
 
 /**
  * Claude → Knowledge Base approval queue.
@@ -35,6 +36,8 @@ export interface PendingArticleInput {
   sourceVectorId?: string
   submittedBy: string
   via: SubmitVia
+  /** Tag names (metadata.tags from the nuvho-knowledge-save skill). Stored when the tag tables exist. */
+  tags?: unknown
   /** When false, an unknown categorySlug is an error instead of falling back to the inbox. */
   fallbackToInbox?: boolean
 }
@@ -127,6 +130,18 @@ export function joinChunks(chunks: string[]): string {
   return words.join(' ')
 }
 
+/**
+ * Rebuilds a saved entry from its chunks. Fixed-size chunks overlap, so they are merged
+ * word by word (joinChunks). Heading / paragraph / none chunks never overlap and carry the
+ * markdown structure (headings, lists, paragraphs), so they are joined with a blank line —
+ * exactly how the nuvho-knowledge-save skill verifies a document (string_agg with E'\n\n').
+ */
+export function rebuildContent(chunks: string[], chunkStrategy?: string | null): string {
+  const strategy = (chunkStrategy ?? '').toLowerCase()
+  if (strategy && strategy !== 'fixed') return chunks.map(c => c.trim()).filter(Boolean).join('\n\n')
+  return joinChunks(chunks)
+}
+
 // ── Create a pending article ────────────────────────────────────────────────
 
 export async function createPendingArticle(input: PendingArticleInput): Promise<PendingArticleResult> {
@@ -210,15 +225,18 @@ export async function createPendingArticle(input: PendingArticleInput): Promise<
     const wordCount = stripHtml(html).split(/\s+/).filter(Boolean).length
     const readTime = Number(input.readTime) || Math.max(1, Math.round(wordCount / 200))
 
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO nuvho_kb.articles
          (slug, title, description, category_slug, subcategory_slug, content, read_time, featured,
           sort_order, status, visibility, source_tier, source_vector_id, submitted_by, submitted_via, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,'pending',$9,$10,$11,$12,$13,NOW())`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,'pending',$9,$10,$11,$12,$13,NOW())
+       RETURNING id`,
       [slug, title, description || title, categorySlug, subcategorySlug, sanitizeArticleHtml(html),
        readTime, order, input.visibility ?? null, input.sourceTier ?? null, input.sourceVectorId ?? null,
        input.submittedBy, input.via]
     )
+
+    if (input.tags !== undefined) await setArticleTags(client, inserted.rows[0].id, input.tags)
 
     if (input.sourceTier && input.sourceVectorId) {
       await client.query(
@@ -292,12 +310,14 @@ export async function importFromVectorDBs(runBy: string): Promise<ImportSummary>
       for (const [sourceId, chunks] of Array.from(docs.entries())) {
         if (already.has(sourceId)) { summary.skipped++; continue }
         const meta = chunks[0].metadata ?? {}
-        const content = joinChunks(chunks.map(c => c.content))
+        const content = rebuildContent(chunks.map(c => c.content), meta.chunk_strategy)
         const title = String(meta.title ?? '').trim() || deriveDescription(content, 80)
         const visibility = meta.visibility === 'internal' ? 'private' : meta.visibility === 'public' ? 'public' : null
         try {
           const res = await createPendingArticle({
             title,
+            // Answer-first card text from the skill (1.6.0+); otherwise derived from the content
+            description: typeof meta.description === 'string' ? meta.description.slice(0, 300) : undefined,
             content,
             categorySlug: meta.kb_category,
             subcategorySlug: meta.kb_subcategory,
@@ -306,6 +326,7 @@ export async function importFromVectorDBs(runBy: string): Promise<ImportSummary>
             sourceVectorId: sourceId,
             submittedBy: String(meta.saved_by ?? meta.ingested_by ?? runBy),
             via: 'claude-pull',
+            tags: meta.tags,
           })
           if (res.created) summary.imported.push({ tier, sourceId, title, categorySlug: res.categorySlug, slug: res.slug })
           else summary.skipped++

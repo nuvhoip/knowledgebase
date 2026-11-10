@@ -7,6 +7,7 @@ import RichTextEditor from '@/components/RichTextEditor'
 import ImageUploadField from '@/components/ImageUploadField'
 import SyncModal, { TIERS, type SyncTarget } from '@/components/admin/SyncModal'
 import { heroPreviewUrl } from '@/lib/heroPreviewUrl'
+import { splitTagText } from '@/lib/tags'
 
 // Admin dashboard — browser-app law (nuvho-web-design references/browser-app-shell.md):
 // §4 Figma Button · §5 Figma field · §6 table (48px rows, sentence-case header)
@@ -241,7 +242,8 @@ function CategoryForm({ title, desc, icon, visibility, setTitle, setDesc, setIco
 
 function ArticleForm({ categories, subcategories, title, desc, category, subcategory, content, readTime, featured, visibility,
   setTitle, setDesc, setCategory, setSubcategory, setContent, setReadTime, setFeatured, setVisibility,
-  onSave, onCancel, saving, saveLabel, showCategory, hero = '', setHero, showHero = false, library }: {
+  onSave, onCancel, saving, saveLabel, showCategory, hero = '', setHero, showHero = false, library,
+  tags = '', setTags, showTags = false }: {
   categories: AdminCategory[]
   subcategories: AdminSubcategory[]
   title: string; desc: string; category: string; subcategory: string; content: string; readTime: string; featured: boolean
@@ -256,6 +258,8 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
   hero?: string; setHero?: (v: string) => void; showHero?: boolean
   /** Adds "Choose from library" to the hero field (only once the image library has photos). */
   library?: { previewUrl: (src: string) => string }
+  /** Tags (KB_TAGS_ENABLED): comma-separated names. Shown once the article's tags have loaded. */
+  tags?: string; setTags?: (v: string) => void; showTags?: boolean
 }) {
   const subsForCategory = subcategories.filter(s => s.category_slug === category)
   return (
@@ -293,6 +297,21 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
         <label className="na-label">Description <span className="na-req">*</span></label>
         <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Short description…" className="na-textarea" />
       </div>
+      {showTags && setTags && (
+        <div className="na-field">
+          <label className="na-label">Tags <small>optional</small></label>
+          <input value={tags} onChange={e => setTags(e.target.value)} disabled={saving} className="na-input"
+            placeholder="e.g. Booking Engine, Rate Parity, Channel Manager" />
+          {splitTagText(tags).length > 0 && (
+            <div className="na-tag-preview" aria-hidden="true">
+              {splitTagText(tags).slice(0, 12).map((t, i) => <span key={`${t}-${i}`} className="nw-tag">{t}</span>)}
+            </div>
+          )}
+          <span className="na-help">
+            Separate with commas, up to 12. Use the words a hotelier would search for; reuse existing tags where they fit.
+          </span>
+        </div>
+      )}
       {showHero && setHero && (
         <div className="na-field">
           <label className="na-label" htmlFor="heroSrc">Hero image <small>optional</small></label>
@@ -1071,11 +1090,14 @@ function ArticlesTab({
   onToast,
   onPendingCount,
   imageLibrary = false,
+  tagsEnabled = false,
 }: {
   onToast: (msg: string, type: 'success' | 'error') => void
   onPendingCount: (n: number) => void
   /** True once the image library has imported photos (checked by app/admin/page.tsx). */
   imageLibrary?: boolean
+  /** KB_TAGS_ENABLED (from app/admin/page.tsx): shows the Tags field. */
+  tagsEnabled?: boolean
 }) {
   const [articles, setArticles] = useState<AdminArticle[]>([])
   const [categories, setCategories] = useState<AdminCategory[]>([])
@@ -1102,6 +1124,9 @@ function ArticlesTab({
   // True once startEdit has fetched the stored HTML. Until then an empty editor means
   // "leave the content unchanged", never "wipe it".
   const [fContentLoaded, setFContentLoaded] = useState(false)
+  // Tags: comma-separated names. Sent on save only once loaded, so a failed load never clears them.
+  const [fTags, setFTags] = useState('')
+  const [fTagsLoaded, setFTagsLoaded] = useState(false)
   // Which row's body the in-flight startEdit fetch belongs to (guards against a late
   // response landing in a different row's form).
   const editKeyRef = useRef<string | null>(null)
@@ -1207,6 +1232,8 @@ function ArticlesTab({
     setFHero('')
     setFHeroAlt('')
     setFContentLoaded(false)
+    setFTags('')
+    setFTagsLoaded(false)
     setFReadTime(String(art.read_time))
     setFFeatured(art.featured)
     setShowAdd(false)
@@ -1222,6 +1249,10 @@ function ArticlesTab({
       setFHero(hero?.src ?? '')
       setFHeroAlt(hero?.alt ?? '')
       setFContentLoaded(true)
+      if (Array.isArray(data.tags)) {
+        setFTags(data.tags.join(', '))
+        setFTagsLoaded(true)
+      }
     } catch {
       if (editKeyRef.current !== key) return
       onToast('Could not load the article body. Existing content will be kept unless you type something.', 'error')
@@ -1243,6 +1274,8 @@ function ArticlesTab({
     setFHero('')
     setFHeroAlt('')
     setFContentLoaded(false)
+    setFTags('')
+    setFTagsLoaded(true)
     editKeyRef.current = null
   }
 
@@ -1267,6 +1300,7 @@ function ArticlesTab({
       // Send content only when the editor holds the real body (or the author typed
       // something / set a hero) so a failed load can never blank an article.
       if (fContentLoaded || fContent.trim() || fHero.trim()) body.content = injectHero(fContent, fHero, fHeroAlt)
+      if (tagsEnabled && fTagsLoaded) body.tags = splitTagText(fTags)
       const res = await fetch(`/api/articles/${art.category_slug}/${art.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1295,6 +1329,7 @@ function ArticlesTab({
         body: JSON.stringify({
           title: fTitle, description: fDesc, categorySlug: fCategory, subcategorySlug: fSubcategory,
           content: injectHero(fContent, fHero, fHeroAlt), readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
+          ...(tagsEnabled ? { tags: splitTagText(fTags) } : {}),
         }),
       })
       const data = await res.json()
@@ -1409,6 +1444,7 @@ function ArticlesTab({
             showCategory
             hero={fHero} setHero={setFHero} showHero
             library={heroLibrary(null)}
+            tags={fTags} setTags={setFTags} showTags={tagsEnabled && fTagsLoaded}
           />
         </div>
       )}
@@ -1511,6 +1547,7 @@ function ArticlesTab({
                           showCategory
                           hero={fHero} setHero={setFHero} showHero
                           library={heroLibrary(art)}
+                          tags={fTags} setTags={setFTags} showTags={tagsEnabled && fTagsLoaded}
                         />
                       </td>
                     </tr>
@@ -1552,7 +1589,7 @@ const TABS: { key: 'categories' | 'articles' | 'users'; label: string }[] = [
   { key: 'users',      label: 'Users' },
 ]
 
-export default function AdminDashboard({ imageLibrary = false }: { imageLibrary?: boolean }) {
+export default function AdminDashboard({ imageLibrary = false, tagsEnabled = false }: { imageLibrary?: boolean; tagsEnabled?: boolean }) {
   const [activeTab, setActiveTab] = useState<'categories' | 'articles' | 'users'>('categories')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
@@ -1582,7 +1619,7 @@ export default function AdminDashboard({ imageLibrary = false }: { imageLibrary?
       </div>
 
       {activeTab === 'categories' && <CategoriesTab onToast={showToast} />}
-      {activeTab === 'articles' && <ArticlesTab onToast={showToast} onPendingCount={setPendingCount} imageLibrary={imageLibrary} />}
+      {activeTab === 'articles' && <ArticlesTab onToast={showToast} onPendingCount={setPendingCount} imageLibrary={imageLibrary} tagsEnabled={tagsEnabled} />}
       {activeTab === 'users' && <UsersTab onToast={showToast} />}
 
       {toast && (

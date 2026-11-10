@@ -65,6 +65,7 @@ export default async function HeroPreviewPage({ searchParams }: Props) {
     categorySlug: category.slug,
     subcategorySlug: '',
     updatedAt: updated,
+    updatedAtIso: '',
     readTime,
     status: 'published',
     visibility,
