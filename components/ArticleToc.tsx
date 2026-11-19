@@ -1,23 +1,25 @@
 'use client'
 
 import { useEffect, useMemo, useState, MouseEvent } from 'react'
-import Icon from './Icon'
 import type { TocEntry } from '@/lib/toc'
 
 interface Props {
   entries: TocEntry[]
-  /** `side`: sticky "On this page" panel (≥1024px). `inline`: collapsible "Contents" block above the body. */
+  /** `side`: sticky "On this page" panel (≥1024px). `inline`: "Contents" block above the body (<1024px). */
   variant: 'side' | 'inline'
 }
+
+// The outline is always fully expanded (decision 17 Nov 2026): every H2 and its H3s are
+// visible at once, in both variants. No accordions, no toggles, nothing to open first.
 
 // A heading counts as the current section once its top passes this line (px from the
 // viewport top). The header is not sticky, so this only needs to clear the reading line.
 const ACTIVE_LINE = 120
 
-function flatten(entries: TocEntry[], parents: string[] = [], out: { id: string; parents: string[] }[] = []) {
+function flatten(entries: TocEntry[], out: string[] = []) {
   for (const e of entries) {
-    out.push({ id: e.id, parents })
-    flatten(e.children, [...parents, e.id], out)
+    out.push(e.id)
+    flatten(e.children, out)
   }
   return out
 }
@@ -50,16 +52,8 @@ function useActiveHeading(ids: string[]) {
 }
 
 export default function ArticleToc({ entries, variant }: Props) {
-  const flat = useMemo(() => flatten(entries), [entries])
-  const [active, setActive] = useActiveHeading(flat.map(f => f.id))
-  // Explicit open/closed choices; anything not chosen follows the active section.
-  const [toggled, setToggled] = useState<Record<string, boolean>>({})
-  const [inlineOpen, setInlineOpen] = useState(false)
-
-  const activePath = useMemo(() => {
-    const hit = flat.find(f => f.id === active)
-    return new Set(hit ? [...hit.parents, hit.id] : [])
-  }, [flat, active])
+  const ids = useMemo(() => flatten(entries), [entries])
+  const [active, setActive] = useActiveHeading(ids)
 
   function go(e: MouseEvent<HTMLAnchorElement>, id: string) {
     const target = document.getElementById(id)
@@ -77,39 +71,18 @@ export default function ArticleToc({ entries, variant }: Props) {
     return (
       <ul className={`nw-toc__list${sub ? ' nw-toc__list--sub' : ''}`}>
         {list.map(e => {
-          const hasChildren = e.children.length > 0
-          const open = toggled[e.id] ?? activePath.has(e.id)
-          const subId = `toc-${variant}-${e.id}`
           const isActive = active === e.id
           return (
             <li key={e.id}>
-              <div className="nw-toc__row">
-                <a
-                  href={`#${encodeURIComponent(e.id)}`}
-                  className={`nw-toc__link${isActive ? ' nw-toc__link--active' : ''}`}
-                  aria-current={isActive ? 'location' : undefined}
-                  onClick={ev => go(ev, e.id)}
-                >
-                  {e.text}
-                </a>
-                {hasChildren && (
-                  <button
-                    type="button"
-                    className="nw-toc__toggle"
-                    aria-expanded={open}
-                    aria-controls={subId}
-                    aria-label={`Subsections of ${e.text}`}
-                    onClick={() => setToggled(t => ({ ...t, [e.id]: !open }))}
-                  >
-                    <Icon name="angle-down" size={10} />
-                  </button>
-                )}
-              </div>
-              {hasChildren && (
-                <div id={subId} hidden={!open}>
-                  {renderList(e.children, true)}
-                </div>
-              )}
+              <a
+                href={`#${encodeURIComponent(e.id)}`}
+                className={`nw-toc__link${isActive ? ' nw-toc__link--active' : ''}`}
+                aria-current={isActive ? 'location' : undefined}
+                onClick={ev => go(ev, e.id)}
+              >
+                {e.text}
+              </a>
+              {e.children.length > 0 && renderList(e.children, true)}
             </li>
           )
         })}
@@ -117,30 +90,10 @@ export default function ArticleToc({ entries, variant }: Props) {
     )
   }
 
-  if (variant === 'side') {
-    return (
-      <nav aria-label="On this page" className="nw-toc nw-toc--side">
-        <p className="nw-toc__title">On this page</p>
-        {renderList(entries)}
-      </nav>
-    )
-  }
-
   return (
-    <nav aria-label="On this page" className="nw-toc nw-toc--inline">
-      <button
-        type="button"
-        className="nw-toc__head"
-        aria-expanded={inlineOpen}
-        aria-controls="toc-inline-list"
-        onClick={() => setInlineOpen(o => !o)}
-      >
-        Contents
-        <Icon name="angle-down" size={12} />
-      </button>
-      <div id="toc-inline-list" hidden={!inlineOpen}>
-        {renderList(entries)}
-      </div>
+    <nav aria-label="On this page" className={`nw-toc nw-toc--${variant}`}>
+      <p className="nw-toc__title">{variant === 'side' ? 'On this page' : 'Contents'}</p>
+      {renderList(entries)}
     </nav>
   )
 }

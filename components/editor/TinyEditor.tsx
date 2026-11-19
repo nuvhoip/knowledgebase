@@ -35,6 +35,13 @@ import 'tinymce/plugins/visualblocks'
 import 'tinymce/plugins/wordcount'
 
 import { ACCEPTED_IMAGE_TYPES, uploadImage } from '@/lib/uploadClient'
+import { ARTICLE_ICONS, SNIPPETS, iconHtml, isArticleIcon } from '@/lib/articleComponents'
+import type { ImportResult } from '@/lib/htmlImport'
+
+export interface ImportedMeta {
+  title: string
+  description: string
+}
 
 export interface RichTextEditorProps {
   value: string
@@ -44,13 +51,148 @@ export interface RichTextEditorProps {
   /** Minimum height of the writing area in px (the area grows with content). */
   minHeight?: number
   disabled?: boolean
+  /** Called after Import HTML with the page's title and description, so the form can fill empty fields. */
+  onImport?: (meta: ImportedMeta) => void
+}
+
+// Components menu + Import (lib/articleComponents.ts, lib/htmlImport.ts). Both only insert
+// ordinary article HTML; the save path sanitises it like anything typed by hand.
+function registerArticleTools(
+  editor: TinyMCEEditor,
+  onChange: { current: (html: string) => void },
+  onImport: { current: ((meta: ImportedMeta) => void) | undefined },
+) {
+  const insert = (key: keyof typeof SNIPPETS) => () => editor.insertContent(SNIPPETS[key].html)
+  const item = (key: keyof typeof SNIPPETS, text = SNIPPETS[key].label) =>
+    ({ type: 'menuitem' as const, text, onAction: insert(key) })
+
+  function openIconDialog() {
+    editor.windowManager.open({
+      title: 'Insert icon',
+      body: {
+        type: 'panel',
+        items: [
+          { type: 'selectbox', name: 'icon', label: 'Brand icon', items: ARTICLE_ICONS.map(n => ({ text: n, value: n })) },
+          { type: 'htmlpanel', html: '<p style="margin:8px 0 0;font-size:13px;opacity:.75">Icons are decorative: put the meaning in the text next to them. At the start of a heading, an icon sizes itself to the heading.</p>' },
+        ],
+      },
+      initialData: { icon: 'lightbulb' },
+      buttons: [
+        { type: 'cancel', text: 'Cancel' },
+        { type: 'submit', text: 'Insert', buttonType: 'primary' },
+      ],
+      onSubmit: api => {
+        const { icon } = api.getData() as { icon: string }
+        if (isArticleIcon(icon)) editor.insertContent(iconHtml(icon))
+        api.close()
+      },
+    })
+  }
+
+  editor.ui.registry.addMenuButton('nwcomponents', {
+    text: 'Components',
+    tooltip: 'Insert a callout, cards, steps, table, badge or icon',
+    fetch: done => done([
+      { type: 'nestedmenuitem', text: 'Callout', getSubmenuItems: () => [item('calloutTip', 'Tip'), item('calloutInfo', 'Note'), item('calloutRisk', 'Risk'), item('calloutOk', 'Success')] },
+      { type: 'nestedmenuitem', text: 'Cards', getSubmenuItems: () => [item('cards2', '2 columns'), item('cards3', '3 columns')] },
+      item('steps'),
+      item('table'),
+      { type: 'nestedmenuitem', text: 'Badge', getSubmenuItems: () => [item('badgeNeutral', 'Neutral'), item('badgeOk', 'Success'), item('badgeRisk', 'Risk')] },
+      { type: 'menuitem', text: 'Icon…', onAction: openIconDialog },
+      { type: 'separator' },
+      item('cta'),
+      item('fineprint'),
+      item('divider'),
+    ]),
+  })
+
+  async function runImport(source: string) {
+    editor.setProgressState(true)
+    let data: ImportResult & { error?: string }
+    try {
+      const res = await fetch('/api/admin/import-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: source }),
+      })
+      data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `Import failed (${res.status}).`)
+    } catch (err) {
+      editor.notificationManager.open({ text: err instanceof Error ? err.message : 'Import failed.', type: 'error' })
+      return
+    } finally {
+      editor.setProgressState(false)
+    }
+
+    const apply = () => {
+      editor.undoManager.transact(() => editor.setContent(data.html))
+      onChange.current(editor.getContent())
+      onImport.current?.({ title: data.title, description: data.description })
+      editor.notificationManager.open({
+        text: ['Imported. Review it before you save.', ...data.notes].join(' '),
+        type: 'info',
+        timeout: 15000,
+      })
+    }
+    if (editor.getContent({ format: 'text' }).trim()) {
+      editor.windowManager.confirm('Replace the current article content with the imported HTML? Undo brings it back.', ok => { if (ok) apply() })
+    } else {
+      apply()
+    }
+  }
+
+  function pickFile() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.html,.htm,text/html'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (file) runImport(await file.text())
+    }
+    input.click()
+  }
+
+  function openPasteDialog() {
+    editor.windowManager.open({
+      title: 'Import HTML',
+      size: 'large',
+      body: {
+        type: 'panel',
+        items: [{ type: 'textarea', name: 'html', label: 'Paste the HTML of a page or article', placeholder: '<!DOCTYPE html>…', maximized: true }],
+      },
+      initialData: { html: '' },
+      buttons: [
+        { type: 'cancel', text: 'Cancel' },
+        { type: 'submit', text: 'Import', buttonType: 'primary' },
+      ],
+      onSubmit: api => {
+        const { html } = api.getData() as { html: string }
+        api.close()
+        if (html.trim()) runImport(html)
+      },
+    })
+  }
+
+  editor.ui.registry.addMenuButton('nwimport', {
+    text: 'Import',
+    tooltip: 'Turn a standalone HTML page into this article',
+    fetch: done => done([
+      { type: 'menuitem', text: 'HTML file…', onAction: pickFile },
+      { type: 'menuitem', text: 'Paste HTML…', onAction: openPasteDialog },
+    ]),
+  })
 }
 
 export default function TinyEditor({
-  value, onChange, id, placeholder = 'Write the article…', minHeight = 360, disabled = false,
+  value, onChange, id, placeholder = 'Write the article…', minHeight = 360, disabled = false, onImport,
 }: RichTextEditorProps) {
   const toolbarId = `na-editor-toolbar-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const editorRef = useRef<TinyMCEEditor | null>(null)
+  // init runs once, so the menus read the latest callbacks through refs
+  const onChangeRef = useRef(onChange)
+  const onImportRef = useRef(onImport)
+  onChangeRef.current = onChange
+  onImportRef.current = onImport
 
   return (
     <div className={`na-editor${disabled ? ' na-editor--disabled' : ''}`}>
@@ -76,8 +218,9 @@ export default function TinyEditor({
             toolbar_mode: 'wrap',
             plugins: 'advlist anchor autolink code image link lists searchreplace table visualblocks wordcount',
             toolbar:
-              'undo redo | blocks | bold italic underline strikethrough | link image table | ' +
-              'bullist numlist blockquote | alignleft aligncenter alignright | removeformat | searchreplace visualblocks code',
+              'undo redo | blocks | bold italic underline strikethrough | link image table | nwcomponents | ' +
+              'bullist numlist blockquote | alignleft aligncenter alignright | removeformat | searchreplace visualblocks code | nwimport',
+            setup: editor => registerArticleTools(editor, onChangeRef, onImportRef),
             block_formats: 'Paragraph=p; Heading 2=h2; Heading 3=h3; Heading 4=h4; Preformatted=pre',
             contextmenu: 'link image table',
             browser_spellcheck: true,

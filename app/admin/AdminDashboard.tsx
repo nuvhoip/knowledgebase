@@ -329,9 +329,17 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
       )}
       <div className="na-field">
         <label className="na-label">Content</label>
-        <RichTextEditor value={content} onChange={setContent} disabled={saving} minHeight={320} />
+        <RichTextEditor
+          value={content} onChange={setContent} disabled={saving} minHeight={320}
+          onImport={m => {
+            if (!title.trim() && m.title) setTitle(m.title)
+            if (!desc.trim() && m.description) setDesc(m.description)
+          }}
+        />
         <span className="na-help">
           Drag, paste or insert images straight into the text and they upload automatically.
+          <strong> Components</strong> adds callouts, cards, steps, tables, badges and icons;
+          <strong> Import</strong> turns a standalone HTML page into the article for you to review.
           The <strong>&lt;&gt;</strong> button opens the raw HTML.
         </span>
       </div>
