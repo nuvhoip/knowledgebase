@@ -6,8 +6,12 @@ import { extractHero, injectHero } from '@/components/heroImage'
 import RichTextEditor from '@/components/RichTextEditor'
 import ImageUploadField from '@/components/ImageUploadField'
 import SyncModal, { TIERS, type SyncTarget } from '@/components/admin/SyncModal'
+import SortableTh, { useSort } from '@/components/admin/SortableTh'
+import AdminArticleSearch from '@/components/admin/AdminArticleSearch'
 import { heroPreviewUrl } from '@/lib/heroPreviewUrl'
+import { sortRows } from '@/lib/adminSort'
 import { splitTagText } from '@/lib/tags'
+import type { AdminSearchSuggestion } from '@/lib/types'
 
 // Admin dashboard — browser-app law (nuvho-web-design references/browser-app-shell.md):
 // §4 Figma Button · §5 Figma field · §6 table (48px rows, sentence-case header)
@@ -428,6 +432,9 @@ function CategoriesTab({ onToast }: { onToast: (msg: string, type: 'success' | '
   const [formDesc, setFormDesc] = useState('')
   const [formIcon, setFormIcon] = useState('')
   const [formVisibility, setFormVisibility] = useState<VisibilityValue>('public')
+  const [sort, toggleSort] = useSort<'title' | 'visibility' | 'articles'>()
+  const sorted = sortRows(categories, sort, (cat, key) =>
+    key === 'title' ? cat.title : key === 'visibility' ? cat.visibility : cat.article_count)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -552,15 +559,15 @@ function CategoriesTab({ onToast }: { onToast: (msg: string, type: 'success' | '
         <table className="na-table">
           <thead>
             <tr>
-              <th>Category</th>
+              <SortableTh label="Category" sortKey="title" sort={sort} onSort={toggleSort} />
               <th>Icon</th>
-              <th className="na-table__c">Visibility</th>
-              <th className="na-table__c">Articles</th>
+              <SortableTh label="Visibility" sortKey="visibility" sort={sort} onSort={toggleSort} className="na-table__c" />
+              <SortableTh label="Articles" sortKey="articles" sort={sort} onSort={toggleSort} className="na-table__c" />
               <th className="na-table__r" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
-            {categories.map(cat => {
+            {sorted.map(cat => {
               const isExpanded = expandedSlug === cat.slug
               return (
                 <Fragment key={cat.slug}>
@@ -721,6 +728,9 @@ function CategorySubcategoriesPanel({ categorySlug, categoryVisibility, onToast 
   const [formTitle, setFormTitle] = useState('')
   const [formDesc, setFormDesc] = useState('')
   const [formVisibility, setFormVisibility] = useState<VisibilityValue | ''>('')
+  const [sort, toggleSort] = useSort<'title' | 'visibility' | 'articles'>()
+  const sorted = sortRows(subcategories, sort, (sub, key) =>
+    key === 'title' ? sub.title : key === 'visibility' ? sub.visibility ?? categoryVisibility : sub.article_count)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -849,14 +859,14 @@ function CategorySubcategoriesPanel({ categorySlug, categoryVisibility, onToast 
           <table className="na-table">
             <thead>
               <tr>
-                <th>Sub-category</th>
-                <th className="na-table__c">Visibility</th>
-                <th className="na-table__c">Articles</th>
+                <SortableTh label="Sub-category" sortKey="title" sort={sort} onSort={toggleSort} />
+                <SortableTh label="Visibility" sortKey="visibility" sort={sort} onSort={toggleSort} className="na-table__c" />
+                <SortableTh label="Articles" sortKey="articles" sort={sort} onSort={toggleSort} className="na-table__c" />
                 <th className="na-table__r" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody>
-              {subcategories.map(sub => (
+              {sorted.map(sub => (
                 <Fragment key={sub.slug}>
                   <tr className="na-row">
                     <td>
@@ -972,6 +982,7 @@ function UsersTab({ onToast }: { onToast: (msg: string, type: 'success' | 'error
   // The user whose password is being reset — that row shows the spinner
   const [resettingId, setResettingId] = useState<number | null>(null)
   const [resetResult, setResetResult] = useState<{ user: AdminUser; newPassword: string } | null>(null)
+  const [sort, toggleSort] = useSort<'name' | 'role'>()
 
   const load = useCallback(async (q: string) => {
     setLoading(true)
@@ -1032,13 +1043,13 @@ function UsersTab({ onToast }: { onToast: (msg: string, type: 'success' | 'error
           <table className="na-table">
             <thead>
               <tr>
-                <th>User</th>
-                <th>Role</th>
+                <SortableTh label="User" sortKey="name" sort={sort} onSort={toggleSort} />
+                <SortableTh label="Role" sortKey="role" sort={sort} onSort={toggleSort} />
                 <th className="na-table__r" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {sortRows(users, sort, (u, key) => (key === 'name' ? u.name : u.role)).map(u => (
                 <tr key={u.id} className="na-row">
                   <td>
                     <span className="na-table__title">{u.name}</span>
@@ -1094,14 +1105,30 @@ function UsersTab({ onToast }: { onToast: (msg: string, type: 'success' | 'error
 
 // ─── Articles Tab ─────────────────────────────────────────────────────────────
 
+interface ArticleSearchResults { term: string; keys: string[] }
+interface ArticleOpenRequest { key: string; n: number }
+
+type ArticleSortKey = 'title' | 'category' | 'readTime' | 'status' | 'visibility' | 'tier'
+
+const articleKey = (a: Pick<AdminArticle, 'category_slug' | 'slug'>) => `${a.category_slug}/${a.slug}`
+const articleRowId = (key: string) => `na-article-${key.replace('/', '--')}`
+
 function ArticlesTab({
   onToast,
   onPendingCount,
   imageLibrary = false,
   tagsEnabled = false,
+  searchResults = null,
+  onClearSearch,
+  openRequest = null,
 }: {
   onToast: (msg: string, type: 'success' | 'error') => void
   onPendingCount: (n: number) => void
+  /** Dashboard search "show all": limit the table to these "category/slug" keys, best match first. */
+  searchResults?: ArticleSearchResults | null
+  onClearSearch?: () => void
+  /** Dashboard search pick: open this article's editor (n changes on every pick). */
+  openRequest?: ArticleOpenRequest | null
   /** True once the image library has imported photos (checked by app/admin/page.tsx). */
   imageLibrary?: boolean
   /** KB_TAGS_ENABLED (from app/admin/page.tsx): shows the Tags field. */
@@ -1202,9 +1229,60 @@ function ArticlesTab({
     syncFromClaude(true)
   }, [syncFromClaude])
 
-  const filtered = articles
+  const [sort, toggleSort] = useSort<ArticleSortKey>()
+  const searchRank = searchResults ? new Map(searchResults.keys.map((k, i) => [k, i])) : null
+  const matching = articles
     .filter(a => !filterCategory || a.category_slug === filterCategory)
     .filter(a => !filterStatus || a.status === filterStatus)
+    .filter(a => !searchRank || searchRank.has(articleKey(a)))
+  // Search results keep relevance order until a column is sorted.
+  if (searchRank) matching.sort((a, b) => searchRank.get(articleKey(a))! - searchRank.get(articleKey(b))!)
+  const filtered = sortRows(matching, sort, (a, key) => {
+    switch (key) {
+      case 'title': return a.title
+      case 'category': return `${a.category_title} › ${a.subcategory_title}`
+      case 'readTime': return a.read_time
+      case 'status': return a.status
+      case 'visibility': return effectiveVisibility(a)
+      case 'tier': return a.vector_tier ? TIERS.find(t => t.value === a.vector_tier)?.label ?? a.vector_tier : null
+    }
+  })
+
+  // ── Dashboard search pick → open that article's editor ──
+  // The list may predate the pick (e.g. an article added since), so reload once before giving up.
+  const handledOpen = useRef<number | null>(null)
+  const reloadedForOpen = useRef<number | null>(null)
+  const [scrollToKey, setScrollToKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!openRequest || loading || handledOpen.current === openRequest.n) return
+    const art = articles.find(a => articleKey(a) === openRequest.key)
+    if (!art) {
+      if (reloadedForOpen.current !== openRequest.n) {
+        reloadedForOpen.current = openRequest.n
+        load()
+        return
+      }
+      handledOpen.current = openRequest.n
+      onToast('That article could not be found — it may have been moved or deleted.', 'error')
+      return
+    }
+    handledOpen.current = openRequest.n
+    // Make sure the toolbar filters don't hide the row being opened.
+    if (filterCategory && filterCategory !== art.category_slug) setFilterCategory('')
+    if (filterStatus && filterStatus !== art.status) setFilterStatus('')
+    startEdit(art)
+    setScrollToKey(openRequest.key)
+    // startEdit is redefined every render; the request number guards against re-running.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest, loading, articles, load, onToast, filterCategory, filterStatus])
+
+  // Runs after the filters above have re-rendered the table, so the row exists.
+  useEffect(() => {
+    if (!scrollToKey) return
+    document.getElementById(articleRowId(scrollToKey))?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setScrollToKey(null)
+  }, [scrollToKey])
 
   // Image library for the hero field: the preview renders the real hero + tile from this
   // unsaved form (category, visibility, read time), so it works for new articles too.
@@ -1412,6 +1490,14 @@ function ArticlesTab({
             <option value="pending">Pending</option>
             <option value="published">Published</option>
           </select>
+          {searchResults && (
+            <span className="na-search-chip">
+              Results for &ldquo;{searchResults.term}&rdquo;
+              <button type="button" onClick={onClearSearch} className="na-search-chip__clear" aria-label="Clear search">
+                <Icon name="xmark" size={10} />
+              </button>
+            </span>
+          )}
         </div>
         {/* Sync from Claude sits right beside Add article (grouped so space-between doesn't split them) */}
         <div className="na-toolbar__right">
@@ -1461,22 +1547,22 @@ function ArticlesTab({
         <table className="na-table">
           <thead>
             <tr>
-              <th>Article</th>
-              <th>Category / sub-category</th>
-              <th className="na-table__c">Read time</th>
-              <th className="na-table__c">Status</th>
-              <th className="na-table__c">Visibility</th>
-              <th className="na-table__c">Vector DB</th>
+              <SortableTh label="Article" sortKey="title" sort={sort} onSort={toggleSort} />
+              <SortableTh label="Category / sub-category" sortKey="category" sort={sort} onSort={toggleSort} />
+              <SortableTh label="Read time" sortKey="readTime" sort={sort} onSort={toggleSort} className="na-table__c" />
+              <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort} className="na-table__c" />
+              <SortableTh label="Visibility" sortKey="visibility" sort={sort} onSort={toggleSort} className="na-table__c" />
+              <SortableTh label="Vector DB" sortKey="tier" sort={sort} onSort={toggleSort} className="na-table__c" />
               <th className="na-table__r" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(art => {
-              const key = `${art.category_slug}/${art.slug}`
+              const key = articleKey(art)
               const tier = TIERS.find(t => t.value === art.vector_tier)
               return (
                 <Fragment key={key}>
-                  <tr className="na-row">
+                  <tr className="na-row" id={articleRowId(key)}>
                     <td>
                       <button type="button" onClick={() => startEdit(art)} className="na-table__title">
                         {art.title}
@@ -1566,7 +1652,11 @@ function ArticlesTab({
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={7} className="na-empty">
-                  {articles.length === 0 ? 'No articles yet.' : 'No articles match the current filters.'}
+                  {articles.length === 0
+                    ? 'No articles yet.'
+                    : searchResults
+                      ? <>No articles match &ldquo;{searchResults.term}&rdquo;{filterCategory || filterStatus ? ' with the current filters' : ''}.</>
+                      : 'No articles match the current filters.'}
                 </td>
               </tr>
             )}
@@ -1601,33 +1691,68 @@ export default function AdminDashboard({ imageLibrary = false, tagsEnabled = fal
   const [activeTab, setActiveTab] = useState<'categories' | 'articles' | 'users'>('categories')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  // Dashboard article search (AdminArticleSearch): a picked article to open, or "show all" results
+  const [openRequest, setOpenRequest] = useState<ArticleOpenRequest | null>(null)
+  const [searchResults, setSearchResults] = useState<ArticleSearchResults | null>(null)
+  const openCounter = useRef(0)
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
   }, [])
 
+  function openArticle(s: AdminSearchSuggestion) {
+    const key = `${s.categorySlug}/${s.slug}`
+    // Keep a "show all" filter only if the picked article is in it
+    setSearchResults(r => (r?.keys.includes(key) ? r : null))
+    openCounter.current += 1
+    setOpenRequest({ key, n: openCounter.current })
+    setActiveTab('articles')
+  }
+
+  async function showAllResults(term: string) {
+    try {
+      const res = await fetch(`/api/admin/search?q=${encodeURIComponent(term)}&limit=100`)
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Search failed.', 'error'); return }
+      const suggestions: AdminSearchSuggestion[] = Array.isArray(data.suggestions) ? data.suggestions : []
+      setOpenRequest(null)
+      setSearchResults({ term, keys: suggestions.map(s => `${s.categorySlug}/${s.slug}`) })
+      setActiveTab('articles')
+    } catch {
+      showToast('Search failed.', 'error')
+    }
+  }
+
   return (
     <div>
-      <div className="na-tabs" role="tablist">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`na-tab${activeTab === tab.key ? ' na-tab--active' : ''}`}
-          >
-            {tab.label}
-            {tab.key === 'articles' && pendingCount > 0 && (
-              <span className="na-tab__count" title={`${pendingCount} pending`}>{pendingCount}</span>
-            )}
-          </button>
-        ))}
+      <div className="na-tabs">
+        <div className="na-tabs__list" role="tablist">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => { setOpenRequest(null); setActiveTab(tab.key) }}
+              className={`na-tab${activeTab === tab.key ? ' na-tab--active' : ''}`}
+            >
+              {tab.label}
+              {tab.key === 'articles' && pendingCount > 0 && (
+                <span className="na-tab__count" title={`${pendingCount} pending`}>{pendingCount}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <AdminArticleSearch onOpen={openArticle} onShowAll={showAllResults} />
       </div>
 
       {activeTab === 'categories' && <CategoriesTab onToast={showToast} />}
-      {activeTab === 'articles' && <ArticlesTab onToast={showToast} onPendingCount={setPendingCount} imageLibrary={imageLibrary} tagsEnabled={tagsEnabled} />}
+      {activeTab === 'articles' && (
+        <ArticlesTab
+          onToast={showToast} onPendingCount={setPendingCount} imageLibrary={imageLibrary} tagsEnabled={tagsEnabled}
+          searchResults={searchResults} onClearSearch={() => setSearchResults(null)} openRequest={openRequest}
+        />
+      )}
       {activeTab === 'users' && <UsersTab onToast={showToast} />}
 
       {toast && (

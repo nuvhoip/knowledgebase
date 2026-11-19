@@ -242,14 +242,14 @@ export async function getFeaturedArticles(limit = 4): Promise<Article[]> {
   return result.rows.map(mapArticle)
 }
 
-/** Every PUBLISHED article with its topic names — the corpus lib/search.ts fuzzy-indexes. */
-export async function getSearchCorpus(): Promise<SearchDocument[]> {
+/** Every PUBLISHED article (or, for admin search, every article) with its topic names — the corpus lib/search.ts fuzzy-indexes. */
+export async function getSearchCorpus(includePending = false): Promise<SearchDocument[]> {
   const result = await pool.query<ArticleRow>(
     `${ARTICLE_SELECT}
-     WHERE a.status = 'published'
+     ${includePending ? '' : `WHERE a.status = 'published'`}
      ORDER BY a.category_slug, a.sort_order, a.title`
   )
-  const tagNames = isTagsEnabled() ? await getTagNamesByArticle().catch(() => new Map<string, string>()) : null
+  const tagNames = isTagsEnabled() ? await getTagNamesByArticle(includePending).catch(() => new Map<string, string>()) : null
   return result.rows.map(row => ({
     article: mapArticle(row),
     categoryTitle: row.category_title,
@@ -265,14 +265,14 @@ export async function getSearchCorpus(): Promise<SearchDocument[]> {
 /** Effective visibility in SQL, same chain as resolveVisibility(). */
 const EFFECTIVE_VISIBILITY = `COALESCE(a.visibility, s.visibility, c.visibility, 'public')`
 
-/** "category/slug" → space-separated tag names, for the search index. */
-async function getTagNamesByArticle(): Promise<Map<string, string>> {
+/** "category/slug" → space-separated tag names, for the search index (published only unless includePending). */
+async function getTagNamesByArticle(includePending = false): Promise<Map<string, string>> {
   const result = await pool.query<{ key: string; names: string }>(
     `SELECT a.category_slug || '/' || a.slug AS key, string_agg(t.name, ' ' ORDER BY t.name) AS names
      FROM nuvho_kb.article_topics at
      JOIN nuvho_kb.topics t ON t.id = at.topic_id
      JOIN nuvho_kb.articles a ON a.id = at.article_id
-     WHERE a.status = 'published'
+     ${includePending ? '' : `WHERE a.status = 'published'`}
      GROUP BY 1`
   )
   return new Map(result.rows.map(r => [r.key, r.names]))

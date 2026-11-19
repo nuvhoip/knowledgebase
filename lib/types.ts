@@ -65,3 +65,9 @@ export interface SearchSuggestion {
   categoryTitle: string
   isPrivate: boolean
 }
+
+/** An admin dashboard search match (/api/admin/search) — pending articles included. */
+export interface AdminSearchSuggestion extends SearchSuggestion {
+  subcategoryTitle: string
+  status: 'pending' | 'published'
+}
