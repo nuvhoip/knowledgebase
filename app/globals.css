@@ -1235,3 +1235,39 @@
   .na-library__grid { padding: 0 16px 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .na-library-preview { padding: 14px 16px 16px; }
 }
+
+/* ============================================================================
+   ADDENDUM 2026-11-19 — admin dashboard article search + sortable columns
+   ========================================================================== */
+
+/* Tab bar hosts the article search on the right; tabs stay on the hairline */
+.na-tabs { align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; }
+.na-tabs__list { display: flex; gap: 4px; }
+
+/* Search field — same fuzzy dropdown as the public search (.nw-suggest) under the admin field */
+.na-search { position: relative; width: 340px; max-width: 100%; margin-bottom: 8px; }
+.na-search__icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.na-search .na-search__input { padding-left: 40px; padding-right: 40px; }
+.na-search__spinner { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: flex; }
+.na-search__list { min-width: 100%; width: 440px; max-width: calc(100vw - 32px); left: auto; right: 0; z-index: 40; }
+.na-badge--xs { height: 18px; padding: 0 8px; font-size: 11px; margin-left: 4px; }
+
+/* "Results for …" chip in the Articles toolbar */
+.na-search-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 12px; border-radius: 999px;
+  background: var(--nv-surface-tint); font: 500 13px/1 var(--nv-font-body); color: var(--nv-text-heading);
+}
+.na-search-chip__clear {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border: 0; border-radius: 50%; background: none; cursor: pointer;
+}
+.na-search-chip__clear:hover { background: var(--nv-white); }
+.na-search-chip__clear:focus-visible { outline: 2px solid var(--nv-tropical-teal); outline-offset: 1px; }
+
+/* Sortable headers reuse the Content index arrow (.na-index__sort); centred columns keep centring */
+.na-table th.na-table__c .na-index__sort { justify-content: center; }
+
+@media (max-width: 720px) {
+  .na-search { order: -1; width: 100%; }
+  .na-search__list { width: auto; left: 0; }
+}

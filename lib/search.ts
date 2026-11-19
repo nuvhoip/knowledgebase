@@ -3,9 +3,10 @@ import { getSearchCorpus } from './data'
 import type { SearchDocument } from './types'
 
 // Fuzzy search over PUBLISHED articles (typo-tolerant: "pasword resett" finds
-// "Reset your password"). The corpus is small — one row per article — so it is
-// indexed in memory with Fuse.js and rebuilt at most once a minute, rather than
-// needing a Postgres extension such as pg_trgm.
+// "Reset your password"); the admin dashboard searches pending ones too. The corpus
+// is small — one row per article — so each scope is indexed in memory with Fuse.js
+// and rebuilt at most every INDEX_TTL_MS, rather than needing a Postgres extension
+// such as pg_trgm.
 
 interface IndexedDocument {
   title: string
@@ -38,7 +39,11 @@ const FUSE_OPTIONS: IFuseOptions<IndexedDocument> = {
 // Words this short must appear as typed: one typo in "api" or "adr" is a different word.
 const EXACT_MAX_CHARS = 4
 
-const INDEX_TTL_MS = 60_000
+/** 'public' indexes PUBLISHED articles (the /search page); 'admin' indexes every article, pending too. */
+export type SearchScope = 'public' | 'admin'
+
+// Admins search right after creating or editing, so their index goes stale sooner.
+const INDEX_TTL_MS: Record<SearchScope, number> = { public: 60_000, admin: 10_000 }
 const MAX_TEXT_CHARS = 20_000
 
 // Words that carry no meaning in a help-centre query and would otherwise have to match.
@@ -51,8 +56,8 @@ const STOP_WORDS = new Set([
 // accented words survive. Built with RegExp because tsconfig's default target rejects /u literals.
 const EDGE_PUNCTUATION = new RegExp('^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$', 'gu')
 
-let cache: { fuse: Fuse<IndexedDocument>; builtAt: number } | null = null
-let building: Promise<Fuse<IndexedDocument>> | null = null
+const cache = new Map<SearchScope, { fuse: Fuse<IndexedDocument>; builtAt: number }>()
+const building = new Map<SearchScope, Promise<Fuse<IndexedDocument>>>()
 
 /** Article HTML → plain text for indexing. */
 function htmlToText(html: string | undefined): string {
@@ -71,8 +76,8 @@ function htmlToText(html: string | undefined): string {
     .slice(0, MAX_TEXT_CHARS)
 }
 
-async function buildIndex(): Promise<Fuse<IndexedDocument>> {
-  const corpus = await getSearchCorpus()
+async function buildIndex(scope: SearchScope): Promise<Fuse<IndexedDocument>> {
+  const corpus = await getSearchCorpus(scope === 'admin')
   const docs = corpus.map(doc => ({
     title: doc.article.title,
     description: doc.article.description,
@@ -84,20 +89,26 @@ async function buildIndex(): Promise<Fuse<IndexedDocument>> {
   return new Fuse(docs, FUSE_OPTIONS)
 }
 
-async function getIndex(): Promise<Fuse<IndexedDocument>> {
-  if (cache && Date.now() - cache.builtAt < INDEX_TTL_MS) return cache.fuse
-  // One rebuild at a time; concurrent searches share it.
-  building ??= buildIndex()
-    .then(fuse => {
-      cache = { fuse, builtAt: Date.now() }
-      return fuse
-    })
-    .finally(() => { building = null })
+async function getIndex(scope: SearchScope): Promise<Fuse<IndexedDocument>> {
+  const cached = cache.get(scope)
+  if (cached && Date.now() - cached.builtAt < INDEX_TTL_MS[scope]) return cached.fuse
+  // One rebuild per scope at a time; concurrent searches share it.
+  let pending = building.get(scope)
+  if (!pending) {
+    pending = buildIndex(scope)
+      .then(fuse => {
+        cache.set(scope, { fuse, builtAt: Date.now() })
+        return fuse
+      })
+      .finally(() => { building.delete(scope) })
+    building.set(scope, pending)
+  }
   try {
-    return await building
+    return await pending
   } catch (err) {
     // Keep serving the last good index if the database is briefly unavailable.
-    if (cache) return cache.fuse
+    const stale = cache.get(scope)
+    if (stale) return stale.fuse
     throw err
   }
 }
@@ -119,16 +130,17 @@ function anyField(word: string): Expression {
 }
 
 /**
- * Fuzzy-search PUBLISHED articles, best match first. Every meaningful word must
- * match some field; if nothing does, falls back to articles matching any word.
- * Visibility is not applied here — the caller filters with canView().
+ * Fuzzy-search articles, best match first: PUBLISHED ones, or every article for
+ * scope 'admin'. Every meaningful word must match some field; if nothing does,
+ * falls back to articles matching any word. Visibility is not applied here — the
+ * public caller filters with canView().
  */
-export async function searchArticles(query: string, limit = 50): Promise<SearchDocument[]> {
+export async function searchArticles(query: string, limit = 50, scope: SearchScope = 'public'): Promise<SearchDocument[]> {
   const phrase = query.trim().toLowerCase()
   const words = tokenize(phrase)
   if (words.length === 0) return []
 
-  const fuse = await getIndex()
+  const fuse = await getIndex(scope)
   let results = fuse.search({ $and: words.map(anyField) })
   if (results.length === 0 && words.length > 1) {
     results = fuse.search({ $or: words.map(anyField) })
