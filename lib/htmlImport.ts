@@ -1,33 +1,70 @@
 import { parseDocument, DomUtils } from 'htmlparser2'
 import type { AnyNode, Element, Document } from 'domhandler'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
-import { CALLOUT_ICONS, componentClasses, iconHtml, type CalloutVariant } from '@/lib/articleComponents'
+import { CALLOUT_ICONS, componentClasses, iconHtml, isArticleIcon, type CalloutVariant } from '@/lib/articleComponents'
+import { embedHtml, isPlayableVideoUrl, isSharePointUrl, parseEmbedUrl, videoHtml } from '@/lib/embeds'
 
-// "Import HTML" (decision 17 Nov 2026): turns a standalone rich HTML page — the reference is
-// Nuvho_Hotel_Brand_Protection_v1.0.0.html, a DocNav page with cards, callouts, steps,
-// badge tables and an icon per section — into ordinary article HTML that uses the
-// component vocabulary in lib/articleComponents.ts. The author reviews the result in the
-// editor before saving, and the save path sanitises it again (lib/sanitize.ts).
+// "Import HTML" (decision 17 Nov 2026, assets 24 Nov 2026 / NUVCL-201): turns a standalone
+// rich HTML page — a Claude document, artifact or DocNav page — into ordinary article HTML
+// that uses the component vocabulary in lib/articleComponents.ts, as close to the source as
+// the KB can show it.
 //
-// What is kept: the article body, its headings, text, lists, tables, links, code, images
-// with a real URL, and every recognised component. What goes: the page's own chrome
-// (sidebar, header, footer, scripts, styles, embedded fonts, logos), inline SVG, data: URI
-// images, section numbers and eyebrow labels above card headings. The first <h1> becomes the
-// article title (later ones become <h2> sections) and the subtitle / meta description the
-// article description.
+// Two stages:
+//   1. convertArticleHtml() (this file, pure): a tree → string render. Every asset the page
+//      carries — inline SVG diagrams and icons, data: images, linked and relative images,
+//      MP4 video — is collected as a PendingAsset and marked in the output with a
+//      placeholder attribute (data-nv-asset="a1") exactly where it appeared.
+//   2. lib/importPipeline.ts (server): stores each asset (lib/uploads.ts), swaps the
+//      placeholders for /uploads/… URLs with resolveAssetPlaceholders(), sanitises, and records
+//      the import so the editor can list, replace and re-insert the assets.
 //
-// Two callers, one converter: the editor's Import menu (POST /api/admin/import-html), and the
-// nuvho-knowledge-save skill's HTML mode, which runs a bundled copy of this file (with the
-// sanitiser) built by scripts/build-skill-importer.mjs. Rebuild that bundle and ship a new
-// skill version whenever this file, lib/articleComponents.ts or lib/sanitize.ts changes.
+// importArticleHtml() runs stage 1 without storing anything (assets are dropped and
+// reported): for tests and anything that cannot reach the file store.
 //
-// Written as a pure tree → string render (no DOM mutation) so it runs on the server and in
-// tests. htmlparser2 is the version sanitize-html already uses (8.x, CommonJS — see the
-// version note in lib/sanitize.ts).
+// What goes: the page's own chrome (sidebar, header, footer, nav), scripts, forms, embedded
+// fonts and logos in the chrome, section numbers and eyebrow labels above card headings. The
+// first <h1> becomes the article title (later ones become <h2> sections), the meta
+// description / subtitle the description, and tag chips the suggested tags.
+//
+// htmlparser2 is the version sanitize-html already uses (8.x, CommonJS — see lib/sanitize.ts).
+
+export const IMPORTER_VERSION = 'kb-import 2.0.0'
+
+export type AssetKind = 'svg' | 'image' | 'video'
+export type AssetSource =
+  | { type: 'svg'; svg: string }        // inline <svg> source, page CSS for it already folded in
+  | { type: 'data'; uri: string }       // data: URI
+  | { type: 'url'; url: string }        // absolute https URL (re-hosted on the KB)
+  | { type: 'path'; path: string }      // relative path: a file in the uploaded .zip bundle
+
+export interface PendingAsset {
+  id: string
+  kind: AssetKind
+  /** icon (sized like text), figure (a diagram or picture on its own), inline (an image within text), video */
+  role: 'icon' | 'figure' | 'inline' | 'video'
+  source: AssetSource
+  /** Human label for the editor's Assets panel: "Inline SVG — From one AI per vendor…", "img/chart.png" */
+  ref: string
+  alt: string
+}
+
+export interface ConvertResult {
+  title: string
+  description: string
+  /** Tag chips / keywords found on the page (suggestions; up to 12). */
+  tags: string[]
+  /** Article HTML with data-nv-asset placeholders, NOT yet sanitised. */
+  html: string
+  assets: PendingAsset[]
+  /** What inline drawings inherited from the page (font, text colour): applied when they are cleaned. */
+  svgDefaults: { fontFamily: string; color: string }
+  notes: string[]
+}
 
 export interface ImportResult {
   title: string
   description: string
+  tags: string[]
   html: string
   /** Plain-language notes on what was changed or dropped, for the author. */
   notes: string[]
@@ -37,7 +74,7 @@ export interface ImportResult {
 const DROP = new Set([
   'script', 'style', 'link', 'meta', 'noscript', 'template', 'title', 'head',
   'nav', 'header', 'footer', 'form', 'button', 'input', 'select', 'textarea', 'label',
-  'iframe', 'object', 'embed', 'canvas', 'video', 'audio', 'source', 'picture', 'svg', 'math',
+  'object', 'embed', 'audio', 'math', 'dialog',
 ])
 
 /** Elements copied through as themselves (attributes filtered by KEEP_ATTRS). */
@@ -46,14 +83,13 @@ const KEEP = new Set([
   'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'mark', 'small', 'code', 'kbd', 'pre',
   'a', 'ul', 'ol', 'li', 'blockquote',
   'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
-  'img', 'figure', 'figcaption', 'dl', 'dt', 'dd',
+  'figcaption', 'dl', 'dt', 'dd',
 ])
 
 const VOID = new Set(['br', 'hr', 'img', 'col'])
 
 const KEEP_ATTRS: Record<string, string[]> = {
   a: ['href', 'title', 'target'],
-  img: ['src', 'alt', 'width', 'height'],
   th: ['colspan', 'rowspan', 'scope'],
   td: ['colspan', 'rowspan'],
   ol: ['start'],
@@ -62,16 +98,26 @@ const KEEP_ATTRS: Record<string, string[]> = {
   h3: ['id'],
 }
 
-const BLOCK = /^(p|h[1-6]|ul|ol|dl|table|blockquote|pre|figure|div|hr)$/
+const BLOCK = /^(p|h[1-6]|ul|ol|dl|table|blockquote|pre|figure|div|hr|video)$/
 
 interface Ctx {
+  source: string
   inGrid: boolean
   inTable: boolean
   inCta: boolean
   inPre: boolean
+  inFigure: boolean
   /** The first <h1> (the article title): dropped. Any later <h1> becomes an <h2> section. */
   titleEl: Element | null
-  counts:{ icons: number; dataImages: number; numbers: number; eyebrows: number; chrome: number }
+  pageCss: string
+  defaults: { fontFamily: string; color: string }
+  assets: PendingAsset[]
+  /** Same source → same asset (repeated icons are stored once). */
+  assetKeys: Map<string, string>
+  counts: {
+    numbers: number; eyebrows: number; chrome: number; canvas: number
+    frames: number; sharepoint: number; externalVideo: number; embeds: number
+  }
 }
 
 function esc(s: string): string {
@@ -115,6 +161,118 @@ function isBlank(n: AnyNode): boolean {
   return n.type === 'comment' || (n.type === 'text' && !/\S/.test((n as unknown as { data: string }).data))
 }
 
+// ── Assets ────────────────────────────────────────────────────────────────────
+
+function addAsset(ctx: Ctx, key: string, make: (id: string) => PendingAsset): string {
+  const seen = ctx.assetKeys.get(key)
+  if (seen) return seen
+  const id = `a${ctx.assets.length + 1}`
+  ctx.assets.push(make(id))
+  ctx.assetKeys.set(key, id)
+  return id
+}
+
+function shorten(s: string, n = 80): string {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
+
+/** A small symbol rather than a drawing: no text, and at most 64 units across. */
+function isIconSvg(el: Element): boolean {
+  if (DomUtils.findOne(c => c.name === 'text', el.children, true)) return false
+  const n = (v?: string) => { const m = /^\s*(\d+(?:\.\d+)?)\s*(px)?\s*$/.exec(v ?? ''); return m ? Number(m[1]) : null }
+  const vb = (el.attribs.viewbox ?? el.attribs.viewBox ?? '').trim().split(/[\s,]+/).map(Number)
+  const w = n(el.attribs.width) ?? (vb.length === 4 ? vb[2] : null)
+  const h = n(el.attribs.height) ?? (vb.length === 4 ? vb[3] : null)
+  if (w === null || h === null) return false
+  // Explicit small rendering size wins (a 512-unit Font Awesome path drawn at 18px)
+  const rw = n(el.attribs.width), rh = n(el.attribs.height)
+  if (rw !== null && rh !== null) return rw <= 64 && rh <= 64
+  return w <= 64 && h <= 64
+}
+
+/** The <svg>'s own source text, sliced from the page so attribute case (viewBox) survives. */
+function svgSource(el: Element, ctx: Ctx): string {
+  if (el.startIndex == null || el.endIndex == null) return ''
+  return ctx.source.slice(el.startIndex, el.endIndex + 1)
+}
+
+function svgAsset(el: Element, ctx: Ctx, role: 'icon' | 'figure'): string {
+  let src = svgSource(el, ctx)
+  if (!src) return ''
+  // Page rules aimed at this drawing (".figure svg text {…}") travel with it
+  const css = svgPageCss(ctx.pageCss, el)
+  if (css) src = src.replace(/^(<svg\b[^>]*>)/i, `$1<style>${css.replace(/<\//g, '')}</style>`)
+  const titleEl = DomUtils.findOne(c => c.name === 'title', el.children, false)
+  const label = (titleEl ? text(titleEl) : el.attribs['aria-label'] ?? '').trim()
+  const alt = role === 'icon' ? '' : label
+  const id = addAsset(ctx, `svg:${src}`, id => ({
+    id, kind: 'svg', role, source: { type: 'svg', svg: src }, alt,
+    ref: label ? `Inline SVG — ${shorten(label)}` : role === 'icon' ? 'Inline SVG icon' : 'Inline SVG drawing',
+  }))
+  const img = `<img data-nv-asset="${id}" alt="${escAttr(alt)}"${role === 'icon' ? ' class="nw-icon"' : ''}>`
+  return role === 'figure' && !ctx.inFigure ? `<figure class="nw-figure">${img}</figure>` : img
+}
+
+function classifyUrl(raw: string): Exclude<AssetSource, { type: 'svg' }> | null {
+  const v = raw.trim()
+  if (!v) return null
+  if (/^data:/i.test(v)) return { type: 'data', uri: v }
+  if (/^\/\//.test(v)) return { type: 'url', url: 'https:' + v }
+  if (/^https?:\/\//i.test(v)) return { type: 'url', url: v }
+  if (/^\/uploads\//.test(v)) return null // already a KB upload: kept as it is
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v) || v.startsWith('#')) return null // other schemes: unusable
+  return { type: 'path', path: v.replace(/[?#].*$/, '') }
+}
+
+function imgAsset(el: Element, ctx: Ctx): string {
+  const raw = el.attribs.src ?? el.attribs['data-src'] ?? ''
+  const alt = el.attribs.alt ?? ''
+  const size = ['width', 'height'].map(a => /^\d+$/.test(el.attribs[a] ?? '') ? ` ${a}="${el.attribs[a]}"` : '').join('')
+  // Already on the KB: an upload, or a brand icon from the library (re-importing KB HTML)
+  if (/^\/uploads\//.test(raw.trim())) return `<img src="${escAttr(raw.trim())}" alt="${escAttr(alt)}"${size}>`
+  const icon = /^\/icons\/([a-z0-9-]+)\.svg$/.exec(raw.trim())
+  if (icon && isArticleIcon(icon[1])) return iconHtml(icon[1])
+  const source = classifyUrl(raw)
+  if (!source) return ''
+  const ref = source.type === 'data' ? `Embedded image${alt ? ` — ${shorten(alt)}` : ''}`
+    : source.type === 'url' ? shorten(source.url, 120) : source.path
+  const key = source.type === 'data' ? `data:${source.uri.slice(0, 200)}:${source.uri.length}` : `${source.type}:${ref}`
+  const role = ctx.inFigure ? 'figure' : 'inline'
+  const id = addAsset(ctx, key, id => ({ id, kind: 'image', role, source, ref, alt }))
+  return `<img data-nv-asset="${id}" alt="${escAttr(alt)}"${size}>`
+}
+
+function videoAsset(el: Element, ctx: Ctx): string {
+  const sources = [el.attribs.src, ...el.children.filter(isEl).filter(c => c.name === 'source').map(c => c.attribs.src)]
+    .filter((s): s is string => !!s && !!s.trim())
+  const raw = sources[0]?.trim() ?? ''
+  if (!raw) return ''
+  const caption = el.attribs.title ?? el.attribs['aria-label'] ?? ''
+  if (isPlayableVideoUrl(raw)) return ctx.inFigure ? videoInner(raw) : videoHtml(raw, { caption })
+  if (isSharePointUrl(raw)) {
+    ctx.counts.sharepoint++
+    return `<p><a href="${escAttr(raw)}">Watch the video</a></p>`
+  }
+  const source = classifyUrl(raw)
+  if (!source) return ''
+  if (source.type === 'url') {
+    // A video on someone else's server: linked, not copied (decision 24 Nov 2026)
+    ctx.counts.externalVideo++
+    return `<p><a href="${escAttr(source.url)}">Watch the video</a></p>`
+  }
+  const ref = source.type === 'data' ? 'Embedded video' : source.path
+  const id = addAsset(ctx, `${source.type}:${source.type === 'data' ? source.uri.length + source.uri.slice(0, 100) : ref}`,
+    id => ({ id, kind: 'video', role: 'video', source, ref, alt: caption }))
+  const tag = `<video data-nv-asset="${id}" class="nw-video" controls="controls" preload="metadata" playsinline="playsinline"></video>`
+  return ctx.inFigure ? tag : `<figure class="nw-figure">${tag}</figure>`
+}
+
+function videoInner(src: string): string {
+  return `<video class="nw-video" src="${escAttr(src)}" controls="controls" preload="metadata" playsinline="playsinline"></video>`
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
 function renderChildren(nodes: AnyNode[], ctx: Ctx): string {
   let out = ''
   for (let i = 0; i < nodes.length; i++) {
@@ -155,7 +313,7 @@ function renderChildren(nodes: AnyNode[], ctx: Ctx): string {
 
 /** Wraps loose inline content in <p> so a component body is always block-level. */
 function asBlocks(html: string, nodes: AnyNode[]): string {
-  const blocky = nodes.some(n => isEl(n) && BLOCK.test(n.name))
+  const blocky = nodes.some(n => isEl(n) && (BLOCK.test(n.name) || (n.name === 'svg' && !isIconSvg(n))))
   return blocky || !html.trim() ? html : `<p>${html.trim()}</p>`
 }
 
@@ -169,22 +327,52 @@ function renderNode(n: AnyNode, ctx: Ctx): string {
   const name = el.name.toLowerCase()
 
   if (DROP.has(name)) {
-    if (name === 'svg') ctx.counts.icons++
-    else if (name === 'nav' || name === 'header' || name === 'footer') ctx.counts.chrome++
+    if (name === 'nav' || name === 'header' || name === 'footer') ctx.counts.chrome++
+    return ''
+  }
+  if (name === 'canvas') { ctx.counts.canvas++; return '' }
+  if (name === 'svg') return svgAsset(el, ctx, isIconSvg(el) ? 'icon' : 'figure')
+  if (name === 'img') return imgAsset(el, ctx)
+  if (name === 'video') return videoAsset(el, ctx)
+  if (name === 'picture') {
+    const img = DomUtils.findOne(c => c.name === 'img', el.children, true)
+    return img ? imgAsset(img, ctx) : ''
+  }
+  if (name === 'source' || name === 'track') return ''
+  if (name === 'iframe') {
+    const embed = parseEmbedUrl(el.attribs.src ?? '')
+    if (embed) { ctx.counts.embeds++; return embedHtml(embed, el.attribs.title) }
+    ctx.counts.frames++
     return ''
   }
   if (name === 'h1') {
     if (el === ctx.titleEl) return '' // becomes the article title
     return `<h2>${renderChildren(el.children, ctx).trim()}</h2>`
   }
+  if (name === 'figure') {
+    const inner = renderChildren(el.children, { ...ctx, inFigure: true })
+    return `<figure class="nw-figure">${inner}</figure>`
+  }
 
   // ── Reference-page patterns (DocNav article markup) ──────────────────────────
   if (has(el, 'sec-num') || has(el, 'step-n')) { ctx.counts.numbers++; return '' }
-  if (has(el, 'sec-ico')) { ctx.counts.icons++; return '' }
-  if (has(el, 'sec-head')) return renderChildren(el.children, ctx)
+  if (has(el, 'sec-ico')) {
+    // The section icon goes inside the heading that follows (sec-head handles it)
+    return ''
+  }
+  if (has(el, 'sec-head')) {
+    const ico = el.children.find(c => isEl(c) && has(c, 'sec-ico')) as Element | undefined
+    const svg = ico ? DomUtils.findOne(c => c.name === 'svg', ico.children, true) : null
+    const icon = svg ? svgAsset(svg, ctx, 'icon') : ''
+    const out = renderChildren(el.children, ctx)
+    return icon ? out.replace(/^(\s*<h[2-6][^>]*>)/, `$1${icon}`) : out
+  }
   if (has(el, 'sec-desc')) return `<p>${renderChildren(el.children, ctx).trim()}</p>`
   if (has(el, 'divider')) return '<hr>'
   if (has(el, 'disclaimer')) return `<p class="nw-fineprint">${renderChildren(el.children, ctx).trim()}</p>`
+  if (name === 'p' && (has(el, 'lead') || has(el, 'lede') || has(el, 'intro') || has(el, 'standfirst'))) {
+    return `<p class="nw-lead">${renderChildren(el.children, ctx).trim()}</p>`
+  }
 
   if (has(el, 'callout')) {
     const variant: CalloutVariant =
@@ -244,13 +432,6 @@ function renderNode(n: AnyNode, ctx: Ctx): string {
     return `<p><a class="nw-cta__link"${href}>${esc(text(el))}</a></p>`
   }
 
-  // ── Images: data: URIs cannot be stored (uploads go through the editor) ─────────
-  if (name === 'img') {
-    const src = el.attribs.src ?? ''
-    if (!src || /^data:/i.test(src)) { ctx.counts.dataImages++; return '' }
-    return `<img${attrs(el)}>`
-  }
-
   // ── Generic HTML ────────────────────────────────────────────────────────────
   if (KEEP.has(name)) {
     const inner = renderChildren(el.children, name === 'pre' ? { ...ctx, inPre: true } : ctx)
@@ -271,6 +452,96 @@ function renderNode(n: AnyNode, ctx: Ctx): string {
   // Everything else (section, article, main, span, font, …) is unwrapped
   return renderChildren(el.children, ctx)
 }
+
+// ── Page CSS (for drawings and defaults) ─────────────────────────────────────
+
+/** All <style> text in the page, with var(--x) resolved from custom properties. */
+function pageStyles(doc: Document): string {
+  const css = DomUtils.findAll(el => el.name === 'style', doc.children)
+    .map(s => s.children.map(c => (c as unknown as { data?: string }).data ?? '').join(''))
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+  const vars = new Map<string, string>()
+  for (const m of Array.from(css.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)/g))) if (!vars.has(m[1])) vars.set(m[1], m[2].trim())
+  let out = css
+  for (let i = 0; i < 4 && /var\(/.test(out); i++) {
+    out = out.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/g, (_, name: string, fb?: string) => vars.get(name) ?? fb?.trim() ?? '')
+  }
+  return out
+}
+
+/** Top-level rules only (rules inside @media and other at-rules are skipped). */
+function topLevelRules(css: string): { selector: string; body: string }[] {
+  const rules: { selector: string; body: string }[] = []
+  let depth = 0, start = 0, selStart = 0
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i]
+    if (ch === ';' && depth === 0) {
+      selStart = i + 1 // after a statement at-rule (@import …; @charset …;)
+    } else if (ch === '{') {
+      if (depth === 0) { start = i; }
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        const selector = css.slice(selStart, start).trim()
+        if (!selector.startsWith('@')) rules.push({ selector, body: css.slice(start + 1, i) })
+        selStart = i + 1
+      }
+      if (depth < 0) depth = 0
+    }
+  }
+  return rules
+}
+
+/** Page rules that style this drawing, rewritten to work inside the standalone SVG. */
+function svgPageCss(css: string, svg: Element): string {
+  if (!css) return ''
+  const used = new Set<string>()
+  const tags = new Set<string>()
+  const walk = (n: AnyNode) => {
+    if (!isEl(n)) return
+    tags.add(n.name.toLowerCase())
+    for (const c of classes(n)) used.add(c)
+    n.children.forEach(walk)
+  }
+  walk(svg)
+  const out: string[] = []
+  for (const rule of topLevelRules(css)) {
+    const kept: string[] = []
+    for (const sel of rule.selector.split(',').map(s => s.trim()).filter(Boolean)) {
+      // ".figure svg text" → "text"; ".figure svg" → "svg"
+      const parts = sel.split(/\s+/)
+      const svgAt = parts.findIndex(p => /^svg(?:[.#:[]|$)/i.test(p))
+      if (svgAt >= 0) { kept.push(parts.slice(svgAt).join(' ')); continue }
+      // A rule aimed only at classes used inside the drawing (".node-label")
+      const last = parts[parts.length - 1]
+      const m = /^([a-z]+)?((?:\.[\w-]+)+)$/i.exec(last)
+      if (parts.length === 1 && m && (!m[1] || tags.has(m[1].toLowerCase()))
+        && m[2].split('.').filter(Boolean).every(c => used.has(c))) kept.push(last)
+    }
+    if (kept.length) out.push(`${kept.join(',')}{${rule.body}}`)
+  }
+  return out.join('')
+}
+
+const FONT_SHORTHAND = /(?:^|[;{\s])font\s*:\s*[^;}]*?[\d.]+(?:px|pt|em|rem|%)(?:\s*\/\s*[\d.]+[a-z%]*)?\s+([^;}]+)/i
+
+/** The page's body font and text colour: what an inline drawing inherited. */
+function pageDefaults(css: string): { fontFamily: string; color: string } {
+  let fontFamily = ''
+  let color = ''
+  for (const rule of topLevelRules(css)) {
+    if (!/(^|,)\s*(body|html|:root)\s*(,|$)/i.test(rule.selector)) continue
+    const fam = /font-family\s*:\s*([^;}]+)/i.exec(rule.body)?.[1] ?? FONT_SHORTHAND.exec(';' + rule.body)?.[1]
+    if (fam) fontFamily = fam.trim()
+    const col = /(?:^|;)\s*color\s*:\s*([^;}]+)/i.exec(rule.body)?.[1]
+    if (col) color = col.trim()
+  }
+  return { fontFamily: fontFamily || 'Raleway, system-ui, sans-serif', color: color || '#414B4C' }
+}
+
+// ── Entry points ─────────────────────────────────────────────────────────────
 
 function first(doc: Document, test: (el: Element) => boolean): Element | null {
   return DomUtils.findOne(test, doc.children, true)
@@ -305,32 +576,95 @@ function tidy(html: string): string {
     .trim()
 }
 
-export function importArticleHtml(source: string): ImportResult {
-  const doc = parseDocument(source, { decodeEntities: true, lowerCaseTags: true, lowerCaseAttributeNames: true })
+function pageTags(doc: Document): string[] {
+  const out: string[] = []
+  const add = (t: string) => {
+    const v = t.replace(/\s+/g, ' ').trim()
+    if (v && v.length <= 60 && !out.some(o => o.toLowerCase() === v.toLowerCase())) out.push(v)
+  }
+  for (const el of DomUtils.findAll(e => has(e, 'tag') || has(e, 'chip') && !!e.parent && isEl(e.parent) && has(e.parent, 'tags'), doc.children)) add(text(el))
+  for (const el of DomUtils.findAll(e => e.name === 'meta', doc.children)) {
+    const n = (el.attribs.name ?? el.attribs.property ?? '').toLowerCase()
+    if (n === 'keywords') (el.attribs.content ?? '').split(',').forEach(add)
+    if (n === 'article:tag') add(el.attribs.content ?? '')
+  }
+  return out.slice(0, 12)
+}
+
+/** Stage 1: converts the page and collects its assets (no I/O). */
+export function convertArticleHtml(source: string): ConvertResult {
+  const doc = parseDocument(source, {
+    decodeEntities: true, lowerCaseTags: true, lowerCaseAttributeNames: true,
+    withStartIndices: true, withEndIndices: true,
+  })
 
   const h1 = first(doc, el => el.name === 'h1')
   const titleTag = first(doc, el => el.name === 'title')
   const title = (h1 ? text(h1) : '') || (titleTag ? text(titleTag).split(/\s+[|–—-]\s+/)[0] : '')
 
   const metaDesc = first(doc, el => el.name === 'meta' && (el.attribs.name ?? '').toLowerCase() === 'description')
-  const subtitle = first(doc, el => has(el, 'subtitle') || has(el, 'lede') || has(el, 'lead'))
+  const subtitle = first(doc, el => has(el, 'subtitle') || has(el, 'lede') || has(el, 'lead') || has(el, 'hero__copy'))
   const description = (metaDesc?.attribs.content ?? '').replace(/\s+/g, ' ').trim() || (subtitle ? text(subtitle) : '')
 
+  const pageCss = pageStyles(doc)
   const ctx: Ctx = {
-    inGrid: false, inTable: false, inCta: false, inPre: false, titleEl: h1,
-    counts: { icons: 0, dataImages: 0, numbers: 0, eyebrows: 0, chrome: 0 },
+    source, inGrid: false, inTable: false, inCta: false, inPre: false, inFigure: false, titleEl: h1,
+    pageCss, defaults: pageDefaults(pageCss), assets: [], assetKeys: new Map(),
+    counts: { numbers: 0, eyebrows: 0, chrome: 0, canvas: 0, frames: 0, sharepoint: 0, externalVideo: 0, embeds: 0 },
   }
   const root = findRoot(doc)
-  const html = sanitizeArticleHtml(tidy(renderChildren(root.children, ctx))) ?? ''
+  const html = tidy(renderChildren(root.children, ctx))
 
   const notes: string[] = []
   const c = ctx.counts
-  if (c.icons) notes.push(`${plural(c.icons, 'inline SVG icon was', 'inline SVG icons were')} removed. Add brand icons from Components → Icon.`)
-  if (c.dataImages) notes.push(`${plural(c.dataImages, 'embedded image was', 'embedded images were')} removed. Upload them with the image button.`)
   if (c.numbers) notes.push(`${plural(c.numbers, 'section or step number was', 'section and step numbers were')} removed; headings and numbered steps carry the order.`)
   if (c.eyebrows) notes.push(`${plural(c.eyebrows, 'label above a card heading was', 'labels above card headings were')} removed.`)
   if (c.chrome) notes.push('The page’s own navigation, header and footer were left out.')
+  if (c.embeds) notes.push(`${plural(c.embeds, 'video or Scribe embed was', 'video or Scribe embeds were')} kept.`)
+  if (c.canvas) notes.push(`${plural(c.canvas, 'chart drawn with JavaScript (canvas) could not', 'charts drawn with JavaScript (canvas) could not')} be imported. Export ${c.canvas === 1 ? 'it' : 'them'} as an image or SVG and add ${c.canvas === 1 ? 'it' : 'them'} from the Assets panel.`)
+  if (c.frames) notes.push(`${plural(c.frames, 'embedded frame was', 'embedded frames were')} removed. Only YouTube, Vimeo and Scribe embeds are supported.`)
+  if (c.sharepoint) notes.push(`${plural(c.sharepoint, 'SharePoint video is', 'SharePoint videos are')} linked, not played: they only open for people signed in to Nuvho’s Microsoft 365. Use an MP4 on sftp.nuvho.com, an upload, YouTube or Vimeo to play it in the article.`)
+  if (c.externalVideo) notes.push(`${plural(c.externalVideo, 'video on another website is', 'videos on other websites are')} linked, not played. Upload the MP4 or put it on sftp.nuvho.com/publicdownloads to play it in the article.`)
   if (!html) notes.push('No article content was found in that HTML.')
 
-  return { title, description, html, notes }
+  return { title, description, tags: pageTags(doc), html, assets: ctx.assets, svgDefaults: ctx.defaults, notes }
+}
+
+/** Removes figures left with nothing but a caption (an asset that could not be stored).
+ *  A figure with any other content — a "Watch the video" link, a quote, text — is kept. */
+function dropEmptyFigures(html: string): string {
+  return html.replace(/<figure\b[^>]*>((?:(?!<\/?figure\b)[\s\S])*)<\/figure>/g, (whole, inner: string) => {
+    const cap = /<figcaption>([\s\S]*?)<\/figcaption>/.exec(inner)?.[1]
+    const rest = inner.replace(/<figcaption>[\s\S]*?<\/figcaption>/, '').replace(/<p>\s*<\/p>/g, '').trim()
+    if (rest) return whole
+    return cap?.trim() ? `<p class="nw-fineprint">${cap}</p>` : ''
+  })
+}
+
+/**
+ * Stage 2 helper: swaps data-nv-asset placeholders for stored URLs, drops the ones that
+ * could not be stored (null / missing), and sanitises. Returns '' when nothing is left.
+ */
+export function resolveAssetPlaceholders(html: string, urls: Record<string, { src: string; width?: number; height?: number } | null>): string {
+  const out = html.replace(/<(img|video)\b([^>]*?)\sdata-nv-asset="(a\d+)"([^>]*)>(<\/video>)?/g,
+    (_whole, tag: string, before: string, id: string, after: string, close?: string) => {
+      const hit = urls[id]
+      if (!hit) return ''
+      const size = tag === 'img' && hit.width && hit.height && !/\swidth=/.test(before + after)
+        ? ` width="${hit.width}" height="${hit.height}"` : ''
+      return `<${tag} src="${escAttr(hit.src)}"${before}${after}${size}>${close ?? ''}`
+    })
+  return sanitizeArticleHtml(tidy(dropEmptyFigures(out).replace(/<p>\s*<\/p>/g, ''))) ?? ''
+}
+
+/** Converts without storing assets (tests, previews): assets are dropped and reported. */
+export function importArticleHtml(source: string): ImportResult {
+  const r = convertArticleHtml(source)
+  const html = r.html ? resolveAssetPlaceholders(r.html, {}) : ''
+  const notes = [...r.notes]
+  if (r.assets.length) {
+    notes.unshift(`${plural(r.assets.length, 'asset (image, drawing or video) was', 'assets (images, drawings or videos) were')} not stored: import through the editor or the KB import API to keep ${r.assets.length === 1 ? 'it' : 'them'}.`)
+  }
+  if (!html && !notes.includes('No article content was found in that HTML.')) notes.push('No article content was found in that HTML.')
+  return { title: r.title, description: r.description, tags: r.tags, html, notes }
 }
