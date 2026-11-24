@@ -62,7 +62,10 @@ only (upload + pending article); revocable at once; last use recorded.
 ## Rollout
 
 1. **Back up the database** (`pg_dump`).
-2. Run **`scripts/011_article_imports.sql`** (additive: three new tables, no changes to existing
+2. Run **`scripts/011_article_imports.sql`**. From a laptop through the SSH tunnel:
+   `node scripts/migrate-011.cjs check`, then `node scripts/migrate-011.cjs apply`. That runs the
+   file in one transaction and verifies the result. Or, on the server: `psql -1 -f` as postgres.
+   The migration (additive: three new tables, no changes to existing
    ones; needs PostgreSQL 13+ for `gen_random_uuid()`). The app hides the Assets panel and the tokens
    tab until it has run, so the deploy can go first.
 3. Check **Cloudflare** allows request bodies of 100 MB for knowledge.nuvho.com (MP4 uploads and
