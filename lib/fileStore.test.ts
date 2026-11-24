@@ -73,10 +73,7 @@ describe('keys and settings', () => {
   it('uploadKeyFromSegments accepts only upload names', () => {
     expect(uploadKeyFromSegments(['mw4ninev-ea1b85c9a021.jpg'])).toBe('mw4ninev-ea1b85c9a021.jpg')
     expect(uploadKeyFromSegments(['2026', '09', 'mw4ninev-ea1b85c9a021.png'])).toBe('2026/09/mw4ninev-ea1b85c9a021.png')
-    // Imported drawings and video (decision 24 Nov 2026) are upload names too
-    expect(uploadKeyFromSegments(['mw4ninev-ea1b85c9a021.svg'])).toBe('mw4ninev-ea1b85c9a021.svg')
-    expect(uploadKeyFromSegments(['mw4ninev-ea1b85c9a021.mp4'])).toBe('mw4ninev-ea1b85c9a021.mp4')
-    for (const bad of [['..', 'x.jpg'], ['mw4ninev-ea1b85c9a021.html'], ['mw4ninev-ea1b85c9a021.mov'], ['a.jpg'], ['x', 'mw4ninev-ea1b85c9a021.jpg'], ['MW4NINEV-EA1B85C9A021.JPG']]) {
+    for (const bad of [['..', 'x.jpg'], ['mw4ninev-ea1b85c9a021.svg'], ['a.jpg'], ['x', 'mw4ninev-ea1b85c9a021.jpg'], ['MW4NINEV-EA1B85C9A021.JPG']]) {
       expect(uploadKeyFromSegments(bad)).toBeNull()
     }
   })

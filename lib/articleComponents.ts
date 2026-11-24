@@ -23,9 +23,6 @@ export const COMPONENT_CLASSES = [
   'nw-badge', 'nw-badge--ok', 'nw-badge--risk', 'nw-badge--info',
   'nw-cta', 'nw-cta__title', 'nw-cta__link',
   'nw-fineprint',
-  // Imported pages and media (decision 24 Nov 2026): lead paragraph, figures, video, embeds
-  'nw-lead', 'nw-figure', 'nw-video',
-  'nw-embed', 'nw-embed--youtube', 'nw-embed--vimeo', 'nw-embed--scribe',
 ] as const
 
 const CLASS_SET = new Set<string>(COMPONENT_CLASSES)

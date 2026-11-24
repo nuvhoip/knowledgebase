@@ -130,10 +130,9 @@ describe('importArticleHtml — reference page', () => {
     expect(r.html).toContain('<code>yourhotel.reseller.com</code>')
   })
 
-  it('reports what it removed, and the assets it could not store without the server', () => {
-    // the section icon and the data: image are assets now (stored by lib/importPipeline.ts);
-    // importArticleHtml() stores nothing, so it says so (the nav logo is page chrome: dropped)
-    expect(r.notes.join(' ')).toMatch(/2 assets \(images, drawings or videos\) were not stored/)
+  it('reports what it removed', () => {
+    expect(r.notes.join(' ')).toMatch(/1 inline SVG icon was removed/)
+    expect(r.notes.join(' ')).toMatch(/1 embedded image was removed/)
     expect(r.notes.join(' ')).toMatch(/section and step numbers were removed/)
     expect(r.notes.join(' ')).toMatch(/4 labels above card headings were removed/)
   })

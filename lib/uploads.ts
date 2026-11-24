@@ -13,37 +13,15 @@ export const MAX_UPLOAD_MB = Math.max(1, Number(process.env.MAX_UPLOAD_MB) || 10
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 export const UPLOADS_URL_PREFIX = '/uploads'
 
-/** Accepted types → file extension. Images (decision 2026-09-24), plus SVG drawings and MP4
- *  video (decision 2026-11-24, imported assets). SVG is only ever stored after
- *  lib/svgSanitize.ts has cleaned it (lib/assetStore.ts), never as uploaded.
+/** Accepted types → file extension. Images only (decision 2026-09-24).
  *  To accept PDFs later add `'application/pdf': 'pdf'` here, a branch in sniffType(),
  *  and the type in lib/fileStore.mjs CONTENT_TYPES. */
 export const ALLOWED_TYPES: Record<string, string> = {
-  'image/jpeg':    'jpg',
-  'image/png':     'png',
-  'image/webp':    'webp',
-  'image/gif':     'gif',
-  'image/svg+xml': 'svg',
-  'video/mp4':     'mp4',
+  'image/jpeg': 'jpg',
+  'image/png':  'png',
+  'image/webp': 'webp',
+  'image/gif':  'gif',
 }
-
-/** Raster images: what the editor's image picker and the hero field accept. */
-export const RASTER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-
-/** MP4 cap (decision 2026-11-24: 100 MB, the most Cloudflare lets through on most plans). */
-export const MAX_VIDEO_MB = Math.max(1, Math.min(100, Number(process.env.MAX_VIDEO_MB) || 100))
-export const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024
-export const MAX_SVG_UPLOAD_BYTES = 2 * 1024 * 1024
-
-/** Largest file accepted for a type. */
-export function maxBytesFor(mime: string): number {
-  if (mime === 'video/mp4') return MAX_VIDEO_BYTES
-  if (mime === 'image/svg+xml') return MAX_SVG_UPLOAD_BYTES
-  return MAX_UPLOAD_BYTES
-}
-
-/** ISO base media brands that are MP4 video we can play (not HEIC/AVIF stills or QuickTime). */
-const MP4_BRANDS = /^(isom|iso[2-9]|mp41|mp42|mp4v|avc1|dash|M4V |M4VH|M4VP|f4v |MSNV|NDAS|3gp[4-6])$/
 
 /** Detect the real type from magic bytes — the client-supplied MIME is never trusted. */
 export function sniffType(buf: Buffer): string | null {
@@ -53,16 +31,7 @@ export function sniffType(buf: Buffer): string | null {
   if (buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp'
   const gif = buf.subarray(0, 6).toString('ascii')
   if (gif === 'GIF87a' || gif === 'GIF89a') return 'image/gif'
-  if (buf.subarray(4, 8).toString('ascii') === 'ftyp' && MP4_BRANDS.test(buf.subarray(8, 12).toString('latin1'))) return 'video/mp4'
-  if (looksLikeSvg(buf)) return 'image/svg+xml'
   return null
-}
-
-/** Text whose first element (after an XML declaration, comments or a doctype) is <svg>. */
-export function looksLikeSvg(buf: Buffer): boolean {
-  const head = buf.subarray(0, 4096).toString('utf8').replace(/^﻿/, '')
-  const rest = head.replace(/^\s*(?:<\?xml[^>]*\?>\s*|<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*/i, '')
-  return /^<svg[\s>]/i.test(rest)
 }
 
 // ─── Identifiers and keys ───────────────────────────────────────────────────
@@ -74,7 +43,7 @@ export function newUploadId(): string {
 
 /** File-store key for a URL path below /uploads/. Accepts <id>.<ext> and, for files saved by
  *  the old local backend, <yyyy>/<mm>/<id>.<ext>. Anything else is null (→ 404). */
-const KEY_RE = /^(?:\d{4}\/\d{2}\/)?([a-z0-9]+-[a-f0-9]{12})\.(jpg|png|webp|gif|svg|mp4)$/
+const KEY_RE = /^(?:\d{4}\/\d{2}\/)?([a-z0-9]+-[a-f0-9]{12})\.(jpg|png|webp|gif)$/
 export function uploadKeyFromSegments(segments: string[]): string | null {
   const key = segments.join('/')
   return KEY_RE.test(key) ? key : null
