@@ -4,7 +4,7 @@ import Footer from '@/components/Footer'
 import InnerHero from '@/components/InnerHero'
 import Icon from '@/components/Icon'
 import { getSession } from '@/lib/auth'
-import { getCategoryBySlug, getArticleBySlug, getArticleTags } from '@/lib/data'
+import { getCategoryBySlug, getArticleBySlugForStaff, getArticleTags } from '@/lib/data'
 import { isTagsEnabled, isVersioningEnabled } from '@/lib/flags'
 import { hasLibraryImages } from '@/lib/imageLibraryDb'
 import VersionHistory from '@/components/admin/VersionHistory'
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props) {
-  const article = await getArticleBySlug(params.categorySlug, params.slug)
+  const article = await getArticleBySlugForStaff(params.categorySlug, params.slug)
   if (!article) return {}
   return { title: `Edit: ${article.title} — Nuvho KB` }
 }
@@ -33,7 +33,8 @@ export default async function ArticleEditPage({ params }: Props) {
   // Tags field (KB_TAGS_ENABLED)
   const tagsOn = isTagsEnabled()
   const [article, category, imageLibrary, tags] = await Promise.all([
-    getArticleBySlug(params.categorySlug, params.slug),
+    // Pending articles too: a Claude import is reviewed (and its Assets used) before it is published
+    getArticleBySlugForStaff(params.categorySlug, params.slug),
     getCategoryBySlug(params.categorySlug),
     hasLibraryImages(),
     tagsOn ? getArticleTags(params.categorySlug, params.slug).catch(() => null) : Promise.resolve(null),

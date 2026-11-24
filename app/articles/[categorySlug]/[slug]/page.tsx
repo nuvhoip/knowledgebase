@@ -13,7 +13,7 @@ import TagList from '@/components/TagList'
 import RelatedArticles from '@/components/RelatedArticles'
 import { extractHero } from '@/components/heroImage'
 import { buildToc, TOC_MIN_ENTRIES } from '@/lib/toc'
-import { getCategoryBySlug, getArticleBySlug, getArticleTags, getRelatedArticles, canView } from '@/lib/data'
+import { getCategoryBySlug, getArticleBySlug, getArticleBySlugForStaff, getArticleTags, getRelatedArticles, canView } from '@/lib/data'
 import { getSession } from '@/lib/auth'
 import { isTagsEnabled } from '@/lib/flags'
 import { SITE_NAME, absoluteUrl, articleJsonLd, articlePath } from '@/lib/seo'
@@ -30,16 +30,26 @@ interface Props {
 
 // generateMetadata and the page share one query per request
 const loadArticle = cache(getArticleBySlug)
+// Staff preview of a PENDING article (e.g. a Claude import waiting for review). Readers still get a 404.
+const loadPendingForStaff = cache(async (categorySlug: string, slug: string) => {
+  const session = await getSession()
+  if (!session?.email.endsWith('@nuvho.com')) return null
+  const a = await getArticleBySlugForStaff(categorySlug, slug)
+  return a && a.status === 'pending' ? a : null
+})
 const loadTags = cache(async (categorySlug: string, slug: string): Promise<Tag[]> =>
   isTagsEnabled() ? getArticleTags(categorySlug, slug).catch(() => []) : []
 )
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const pending = await loadPendingForStaff(params.categorySlug, params.slug)
+  if (pending) return { title: `Pending: ${pending.title} — ${SITE_NAME}`, robots: { index: false, follow: false } }
   const article = await loadArticle(params.categorySlug, params.slug)
   if (!article) return {}
   const tags = await loadTags(params.categorySlug, params.slug)
   const { hero } = extractHero(article.content)
   const url = absoluteUrl(articlePath(article.categorySlug, article.slug))
+
   const isPublic = article.effectiveVisibility === 'public'
   return {
     title: `${article.title} — ${SITE_NAME}`,
@@ -73,7 +83,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // gradient hero) over the centred reader card — content focused in the middle, as before.
 export default async function ArticlePage({ params }: Props) {
   const tagsOn = isTagsEnabled()
-  const [article, category, session, tags, related] = await Promise.all([
+  const [published, category, session, tags, related] = await Promise.all([
     loadArticle(params.categorySlug, params.slug),
     getCategoryBySlug(params.categorySlug),
     getSession(),
@@ -81,7 +91,9 @@ export default async function ArticlePage({ params }: Props) {
     tagsOn ? getRelatedArticles(params.categorySlug, params.slug).catch(() => []) : Promise.resolve([]),
   ])
   const canEdit = !!session?.email.endsWith('@nuvho.com')
+  const article = published ?? (await loadPendingForStaff(params.categorySlug, params.slug))
   if (!article || !category) notFound()
+  const isPending = article.status === 'pending'
 
   if (!canView(article.effectiveVisibility, !!session)) {
     redirect(`/login?next=${encodeURIComponent(`/articles/${params.categorySlug}/${params.slug}`)}`)
@@ -92,7 +104,8 @@ export default async function ArticlePage({ params }: Props) {
   const toc = buildToc(body)
   const showToc = toc.count >= TOC_MIN_ENTRIES
   const visibleRelated = related.filter(a => canView(a.effectiveVisibility, !!session)).slice(0, 4)
-  const isPublic = article.effectiveVisibility === 'public'
+  // A pending preview is never public: no JSON-LD, no indexing
+  const isPublic = article.effectiveVisibility === 'public' && !isPending
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -150,7 +163,9 @@ export default async function ArticlePage({ params }: Props) {
             <article className="nw-reader">
               {canEdit && (
                 <div className="nw-article__bar">
-                  <span className="nw-count" style={{ margin: 0 }}>Staff view</span>
+                  <span className="nw-count" style={{ margin: 0 }}>
+                    {isPending ? 'Pending review: only staff can see this preview. Publish it from Admin → Articles.' : 'Staff view'}
+                  </span>
                   <Link href={`/articles/${params.categorySlug}/${params.slug}/edit`} className="nv-btn nv-btn--secondary">
                     <Icon name="pen-to-square" size={16} />
                     Edit article
