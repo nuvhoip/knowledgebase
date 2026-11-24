@@ -5,7 +5,6 @@ import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { isVersioningEnabled } from '@/lib/flags'
 import { snapshotArticle, withDb } from '@/lib/versions'
 import { normalizeTags, setArticleTags } from '@/lib/tags'
-import { attachImport } from '@/lib/importDb'
 
 function slugify(text: string): string {
   return text
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { title, description, categorySlug, subcategorySlug, content, readTime, featured, visibility, tags, importId } = body
+    const { title, description, categorySlug, subcategorySlug, content, readTime, featured, visibility, tags } = body
 
     if (!title?.trim() || !description?.trim() || !categorySlug?.trim() || !subcategorySlug?.trim()) {
       return NextResponse.json({ error: 'Title, description, category and sub-category are required.' }, { status: 400 })
@@ -104,9 +103,7 @@ export async function POST(req: NextRequest) {
     // Flag off: the same insert as before, straight on the pool.
     const versioning = isVersioningEnabled()
     const tagList = normalizeTags(tags)
-    // importId: the editor imported a page (POST /api/admin/import); link it so the article
-    // keeps its Assets panel and "Restore imported version" (lib/importDb.ts)
-    await withDb(pool, versioning || tagList.length > 0 || !!importId, async db => {
+    await withDb(pool, versioning || tagList.length > 0, async db => {
       const inserted = await db.query(
         `INSERT INTO nuvho_kb.articles
            (slug, title, description, category_slug, subcategory_slug, content, read_time, featured, sort_order, status, visibility, updated_at)
@@ -116,12 +113,8 @@ export async function POST(req: NextRequest) {
          Number(readTime) || 5, Boolean(featured), order, visibility ?? null]
       )
       if (tagList.length) await setArticleTags(db, inserted.rows[0].id, tagList)
-      const importedFrom = importId ? await attachImport(db, importId, inserted.rows[0].id) : null
       if (versioning) {
-        await snapshotArticle(db, inserted.rows[0].id, {
-          source: 'create', changedBy: session.email,
-          changeSummary: importedFrom ? `Created from an import of ${importedFrom}`.slice(0, 500) : 'Created',
-        })
+        await snapshotArticle(db, inserted.rows[0].id, { source: 'create', changedBy: session.email, changeSummary: 'Created' })
       }
     })
 

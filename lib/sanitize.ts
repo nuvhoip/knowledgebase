@@ -1,5 +1,4 @@
 import sanitizeHtml from 'sanitize-html'
-import { EMBED_IFRAME_HOSTS, isPlayableVideoUrl, parseEmbedUrl } from '@/lib/embeds'
 
 // Server-side sanitiser for article HTML (decision 2026-09-24). Runs on every save path:
 // PATCH /api/articles/[cat]/[slug], POST /api/admin/articles and POST /api/admin/ingest.
@@ -9,10 +8,6 @@ import { EMBED_IFRAME_HOSTS, isPlayableVideoUrl, parseEmbedUrl } from '@/lib/emb
 // Allow-list = what .nw-prose styles (app/globals.css) + the hero convention
 // <figure data-nv-hero> (components/heroImage.ts) + what TinyMCE emits for the toolbar
 // we ship (components/editor/TinyEditor.tsx). Relative URLs such as /uploads/… pass.
-//
-// Video and embeds (decision 24 Nov 2026, lib/embeds.ts): <video> only plays KB uploads
-// (/uploads/<id>.mp4) or MP4 links on our own file server; <iframe> only the canonical
-// YouTube (nocookie), Vimeo and Scribe player URLs. Anything else loses its src and is dropped.
 //
 // Version pin: sanitize-html is pinned to 2.17.1 in package.json because 2.17.2+ depends
 // on an ESM-only htmlparser2 (v10/v12) that Next 14's server bundler refuses to compile
@@ -28,7 +23,6 @@ const options: sanitizeHtml.IOptions = {
     'a', 'ul', 'ol', 'li', 'blockquote', 'div', 'section',
     'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
     'img', 'figure', 'figcaption', 'dl', 'dt', 'dd',
-    'video', 'iframe',
   ],
   allowedAttributes: {
     '*':    ['class', 'id', 'style'],
@@ -40,8 +34,6 @@ const options: sanitizeHtml.IOptions = {
     ol:     ['start', 'type', 'reversed'],
     li:     ['value'],
     col:    ['span'],
-    video:  ['src', 'poster', 'controls', 'preload', 'playsinline', 'muted', 'loop', 'width', 'height'],
-    iframe: ['src', 'title', 'loading', 'allow', 'allowfullscreen', 'referrerpolicy', 'width', 'height'],
   },
   allowedStyles: {
     '*': {
@@ -63,30 +55,12 @@ const options: sanitizeHtml.IOptions = {
     },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-  allowedSchemesByTag: { img: ['http', 'https'], video: ['https'], iframe: ['https'] },
-  allowedSchemesAppliedToAttributes: ['href', 'src', 'cite', 'poster'],
+  allowedSchemesByTag: { img: ['http', 'https'] },
   allowProtocolRelative: false,
-  allowedIframeHostnames: [...EMBED_IFRAME_HOSTS],
-  allowIframeRelativeUrls: false,
-  // An <img>, <video> or <iframe> whose src was rejected (data: URI, javascript:, a host we
-  // do not play, …) would otherwise survive as an empty tag and render as a broken box.
-  exclusiveFilter: frame => (frame.tag === 'img' || frame.tag === 'video' || frame.tag === 'iframe') && !frame.attribs.src,
+  // An <img> whose src was rejected (data: URI, javascript:, …) would otherwise survive
+  // as an empty tag and render as a broken image.
+  exclusiveFilter: frame => frame.tag === 'img' && !frame.attribs.src,
   transformTags: {
-    video: (tagName, attribs) => {
-      const next = { ...attribs }
-      if (!next.src || !isPlayableVideoUrl(next.src)) delete next.src
-      if (next.poster && !/^(?:https:\/\/|\/uploads\/)/.test(next.poster)) delete next.poster
-      next.controls = 'controls'
-      return { tagName, attribs: next }
-    },
-    iframe: (tagName, attribs) => {
-      // Only the canonical player URL survives, whatever form it was pasted in
-      const embed = attribs.src ? parseEmbedUrl(attribs.src) : null
-      const next = { ...attribs }
-      if (embed) next.src = embed.src
-      else delete next.src
-      return { tagName, attribs: next }
-    },
     // Links that open a new tab must not hand the opener to the destination.
     a: (tagName, attribs) => {
       const next = { ...attribs }

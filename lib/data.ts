@@ -230,20 +230,6 @@ export async function getArticleBySlug(
   return result.rows.length === 0 ? null : mapArticle(result.rows[0])
 }
 
-/** Single article by slug INCLUDING pending ones — staff only (the edit page and the staff
- *  preview of a pending article). Callers must check the session before using it. */
-export async function getArticleBySlugForStaff(
-  categorySlug: string,
-  articleSlug: string
-): Promise<Article | null> {
-  const result = await pool.query<ArticleRow>(
-    `${ARTICLE_SELECT}
-     WHERE a.category_slug = $1 AND a.slug = $2`,
-    [categorySlug, articleSlug]
-  )
-  return result.rows.length === 0 ? null : mapArticle(result.rows[0])
-}
-
 /** Featured PUBLISHED articles, up to `limit`. */
 export async function getFeaturedArticles(limit = 4): Promise<Article[]> {
   const result = await pool.query<ArticleRow>(

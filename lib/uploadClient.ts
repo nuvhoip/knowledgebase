@@ -9,41 +9,17 @@ export interface UploadResult {
   type: string
 }
 
-/** Mirrors RASTER_TYPES in lib/uploads.ts — used for the <input accept> hint only. */
+/** Mirrors ALLOWED_TYPES in lib/uploads.ts — used for the <input accept> hint only. */
 export const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp,image/gif'
-export const ACCEPTED_VIDEO_TYPES = 'video/mp4,.mp4'
-/** What the Assets panel's Replace accepts: images, SVG drawings and MP4 video. */
-export const ACCEPTED_ASSET_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/svg+xml,.svg,video/mp4,.mp4'
 
-/** Raster image upload (editor image dialog, pasted images, hero field). */
 export function uploadImage(
   file: Blob,
   filename?: string,
   onProgress?: (percent: number) => void,
 ): Promise<UploadResult> {
-  return uploadTo('/api/admin/uploads', file, filename, onProgress, { accept: 'image' })
-}
-
-/** MP4 video upload (editor Media menu), up to 100 MB. */
-export function uploadFile(
-  file: Blob,
-  filename?: string,
-  onProgress?: (percent: number) => void,
-): Promise<UploadResult> {
-  return uploadTo('/api/admin/uploads', file, filename, onProgress, { accept: 'video' })
-}
-
-/** Posts one file (field "file") plus extra fields to an upload endpoint. */
-export function uploadTo(
-  url: string,
-  file: Blob,
-  filename?: string,
-  onProgress?: (percent: number) => void,
-  fields: Record<string, string> = {},
-): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', url)
+    xhr.open('POST', '/api/admin/uploads')
     xhr.withCredentials = true
     xhr.upload.onprogress = e => {
       if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
@@ -63,7 +39,6 @@ export function uploadTo(
     }
     xhr.onerror = () => reject(new Error('Network error during upload.'))
     const form = new FormData()
-    for (const [k, v] of Object.entries(fields)) form.append(k, v)
     form.append('file', file, filename)
     xhr.send(form)
   })

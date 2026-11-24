@@ -1,4 +1,3 @@
-import type { PoolClient } from 'pg'
 import pool from '@/lib/db'
 import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { VALID_TIERS, Tier, isTierConfigured, getVectorPool } from '@/lib/vectorTiers'
@@ -33,8 +32,7 @@ export interface PendingArticleInput {
   subcategorySlug?: string
   visibility?: 'public' | 'private' | null
   readTime?: number
-  /** A vector DB tier, or 'kb' for a page sent straight to the KB (POST /api/admin/import). */
-  sourceTier?: Tier | 'kb'
+  sourceTier?: Tier
   sourceVectorId?: string
   submittedBy: string
   via: SubmitVia
@@ -42,8 +40,6 @@ export interface PendingArticleInput {
   tags?: unknown
   /** When false, an unknown categorySlug is an error instead of falling back to the inbox. */
   fallbackToInbox?: boolean
-  /** Runs inside the insert's transaction (import attach, first version). */
-  afterInsert?: (db: PoolClient, articleId: number) => Promise<void>
 }
 
 export type PendingArticleResult =
@@ -241,7 +237,6 @@ export async function createPendingArticle(input: PendingArticleInput): Promise<
     )
 
     if (input.tags !== undefined) await setArticleTags(client, inserted.rows[0].id, input.tags)
-    if (input.afterInsert) await input.afterInsert(client, inserted.rows[0].id)
 
     if (input.sourceTier && input.sourceVectorId) {
       await client.query(

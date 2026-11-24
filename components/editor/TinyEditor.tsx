@@ -11,7 +11,7 @@
 // see what readers get. The toolbar is pinned into our own container
 // (fixed_toolbar_container + toolbar_persist) so the whole thing reads as one field.
 
-import { useEffect, useId, useRef } from 'react'
+import { useId, useRef } from 'react'
 import { Editor } from '@tinymce/tinymce-react'
 import type { Editor as TinyMCEEditor } from 'tinymce'
 
@@ -34,26 +34,13 @@ import 'tinymce/plugins/table'
 import 'tinymce/plugins/visualblocks'
 import 'tinymce/plugins/wordcount'
 
-import { ACCEPTED_IMAGE_TYPES, ACCEPTED_VIDEO_TYPES, uploadImage, uploadFile } from '@/lib/uploadClient'
+import { ACCEPTED_IMAGE_TYPES, uploadImage } from '@/lib/uploadClient'
 import { ARTICLE_ICONS, SNIPPETS, iconHtml, isArticleIcon } from '@/lib/articleComponents'
-import { embedHtml, isPlayableVideoUrl, isSharePointUrl, parseEmbedUrl, videoHtml } from '@/lib/embeds'
-import type { ImportOutcome } from '@/lib/importPipeline'
+import type { ImportResult } from '@/lib/htmlImport'
 
 export interface ImportedMeta {
   title: string
   description: string
-  /** Tags found on the page (suggestions). */
-  tags: string[]
-  /** The import record (lib/importDb.ts): send it with the save so the article keeps its Assets panel. */
-  importId: string | null
-}
-
-/** What the form can ask the editor to do (Assets panel, Restore import). */
-export interface EditorHandle {
-  insertHtml(html: string): void
-  replaceAll(html: string): void
-  /** Swaps every occurrence of one URL for another in the content (asset replacement). */
-  replaceUrl(from: string, to: string): void
 }
 
 export interface RichTextEditorProps {
@@ -66,13 +53,10 @@ export interface RichTextEditorProps {
   disabled?: boolean
   /** Called after Import HTML with the page's title and description, so the form can fill empty fields. */
   onImport?: (meta: ImportedMeta) => void
-  /** Receives a handle once the editor is ready (and null when it goes away). */
-  onReady?: (handle: EditorHandle | null) => void
 }
 
-// Components menu, Media menu + Import (lib/articleComponents.ts, lib/embeds.ts,
-// lib/importPipeline.ts). All only insert ordinary article HTML; the save path sanitises it
-// like anything typed by hand.
+// Components menu + Import (lib/articleComponents.ts, lib/htmlImport.ts). Both only insert
+// ordinary article HTML; the save path sanitises it like anything typed by hand.
 function registerArticleTools(
   editor: TinyMCEEditor,
   onChange: { current: (html: string) => void },
@@ -122,13 +106,15 @@ function registerArticleTools(
     ]),
   })
 
-  // Import (POST /api/admin/import, lib/importPipeline.ts): the server converts the page and
-  // stores its drawings, images and videos, so they arrive in place as /uploads/… files.
-  async function runImport(body: FormData) {
-    editor.setProgressState(true, 0)
-    let data: ImportOutcome & { error?: string }
+  async function runImport(source: string) {
+    editor.setProgressState(true)
+    let data: ImportResult & { error?: string }
     try {
-      const res = await fetch('/api/admin/import', { method: 'POST', body })
+      const res = await fetch('/api/admin/import-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: source }),
+      })
       data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `Import failed (${res.status}).`)
     } catch (err) {
@@ -141,15 +127,15 @@ function registerArticleTools(
     const apply = () => {
       editor.undoManager.transact(() => editor.setContent(data.html))
       onChange.current(editor.getContent())
-      onImport.current?.({ title: data.title, description: data.description, tags: data.tags ?? [], importId: data.importId })
+      onImport.current?.({ title: data.title, description: data.description })
       editor.notificationManager.open({
         text: ['Imported. Review it before you save.', ...data.notes].join(' '),
-        type: data.assets?.some(a => a.error) ? 'warning' : 'info',
-        timeout: 20000,
+        type: 'info',
+        timeout: 15000,
       })
     }
     if (editor.getContent({ format: 'text' }).trim()) {
-      editor.windowManager.confirm('Replace the current article content with the imported page? Undo brings it back.', ok => { if (ok) apply() })
+      editor.windowManager.confirm('Replace the current article content with the imported HTML? Undo brings it back.', ok => { if (ok) apply() })
     } else {
       apply()
     }
@@ -158,87 +144,13 @@ function registerArticleTools(
   function pickFile() {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.html,.htm,.zip,text/html,application/zip'
-    input.onchange = () => {
-      const file = input.files?.[0]
-      if (!file) return
-      if (file.size > 100 * 1024 * 1024) {
-        editor.notificationManager.open({ text: 'That file is larger than 100 MB.', type: 'error' })
-        return
-      }
-      const body = new FormData()
-      body.append('file', file, file.name)
-      runImport(body)
-    }
-    input.click()
-  }
-
-  // ── Media: video uploads, MP4 links and YouTube / Vimeo / Scribe embeds ──────
-  function openVideoDialog() {
-    editor.windowManager.open({
-      title: 'Insert video or embed',
-      body: {
-        type: 'panel',
-        items: [
-          { type: 'input', name: 'url', label: 'YouTube, Vimeo or Scribe link, or an MP4 on sftp.nuvho.com', placeholder: 'https://…' },
-          { type: 'input', name: 'caption', label: 'Caption (optional)' },
-          { type: 'htmlpanel', html: '<p style="margin:8px 0 0;font-size:13px;opacity:.75">To upload an MP4 (up to 100 MB) use <strong>Media → Upload video</strong>. SharePoint and Stream videos are not supported: they only play for people signed in to Nuvho’s Microsoft 365.</p>' },
-        ],
-      },
-      initialData: { url: '', caption: '' },
-      buttons: [
-        { type: 'cancel', text: 'Cancel' },
-        { type: 'submit', text: 'Insert', buttonType: 'primary' },
-      ],
-      onSubmit: api => {
-        const { url, caption } = api.getData() as { url: string; caption: string }
-        const embed = parseEmbedUrl(url)
-        if (embed) {
-          editor.insertContent(embedHtml(embed, caption))
-        } else if (isPlayableVideoUrl(url)) {
-          editor.insertContent(videoHtml(url.trim(), { caption }))
-        } else {
-          editor.notificationManager.open({
-            text: isSharePointUrl(url)
-              ? 'SharePoint and Stream videos cannot play in articles. Upload the MP4 or put it on sftp.nuvho.com/publicdownloads.'
-              : 'Use a YouTube, Vimeo or Scribe link, or an https MP4 link on sftp.nuvho.com.',
-            type: 'error',
-          })
-          return
-        }
-        api.close()
-      },
-    })
-  }
-
-  function pickVideo() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = ACCEPTED_VIDEO_TYPES
+    input.accept = '.html,.htm,text/html'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file) return
-      editor.setProgressState(true, 0)
-      try {
-        const r = await uploadFile(file, file.name)
-        editor.insertContent(videoHtml(r.url))
-      } catch (err) {
-        editor.notificationManager.open({ text: err instanceof Error ? err.message : 'Upload failed.', type: 'error' })
-      } finally {
-        editor.setProgressState(false)
-      }
+      if (file) runImport(await file.text())
     }
     input.click()
   }
-
-  editor.ui.registry.addMenuButton('nwmedia', {
-    text: 'Media',
-    tooltip: 'Insert a video (upload or link) or a YouTube, Vimeo or Scribe embed',
-    fetch: done => done([
-      { type: 'menuitem', text: 'Upload video (MP4)…', onAction: pickVideo },
-      { type: 'menuitem', text: 'Video link or embed…', onAction: openVideoDialog },
-    ]),
-  })
 
   function openPasteDialog() {
     editor.windowManager.open({
@@ -256,59 +168,31 @@ function registerArticleTools(
       onSubmit: api => {
         const { html } = api.getData() as { html: string }
         api.close()
-        if (!html.trim()) return
-        const body = new FormData()
-        body.append('html', html)
-        runImport(body)
+        if (html.trim()) runImport(html)
       },
     })
   }
 
   editor.ui.registry.addMenuButton('nwimport', {
     text: 'Import',
-    tooltip: 'Turn a standalone HTML page (or a .zip of a page and its files) into this article',
+    tooltip: 'Turn a standalone HTML page into this article',
     fetch: done => done([
-      { type: 'menuitem', text: 'HTML or .zip file…', onAction: pickFile },
+      { type: 'menuitem', text: 'HTML file…', onAction: pickFile },
       { type: 'menuitem', text: 'Paste HTML…', onAction: openPasteDialog },
     ]),
   })
 }
 
-function handleFor(editor: TinyMCEEditor, onChange: { current: (html: string) => void }): EditorHandle {
-  const sync = () => onChange.current(editor.getContent())
-  return {
-    insertHtml(html) {
-      editor.focus()
-      editor.insertContent(html)
-      sync()
-    },
-    replaceAll(html) {
-      editor.undoManager.transact(() => editor.setContent(html))
-      sync()
-    },
-    replaceUrl(from, to) {
-      if (!from || from === to) return
-      const html = editor.getContent()
-      if (!html.includes(from)) return
-      editor.undoManager.transact(() => editor.setContent(html.split(from).join(to)))
-      sync()
-    },
-  }
-}
-
 export default function TinyEditor({
-  value, onChange, id, placeholder = 'Write the article…', minHeight = 360, disabled = false, onImport, onReady,
+  value, onChange, id, placeholder = 'Write the article…', minHeight = 360, disabled = false, onImport,
 }: RichTextEditorProps) {
   const toolbarId = `na-editor-toolbar-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const editorRef = useRef<TinyMCEEditor | null>(null)
   // init runs once, so the menus read the latest callbacks through refs
   const onChangeRef = useRef(onChange)
   const onImportRef = useRef(onImport)
-  const onReadyRef = useRef(onReady)
   onChangeRef.current = onChange
   onImportRef.current = onImport
-  onReadyRef.current = onReady
-  useEffect(() => () => onReadyRef.current?.(null), [])
 
   return (
     <div className={`na-editor${disabled ? ' na-editor--disabled' : ''}`}>
@@ -325,7 +209,6 @@ export default function TinyEditor({
             editorRef.current = editor
             // Same class the article page uses, so the writing surface matches the reader.
             editor.getBody().classList.add('nw-prose')
-            onReadyRef.current?.(handleFor(editor, onChangeRef))
           }}
           init={{
             menubar: false,
@@ -335,22 +218,10 @@ export default function TinyEditor({
             toolbar_mode: 'wrap',
             plugins: 'advlist anchor autolink code image link lists searchreplace table visualblocks wordcount',
             toolbar:
-              'undo redo | blocks | bold italic underline strikethrough | link image nwmedia table | nwcomponents | ' +
+              'undo redo | blocks | bold italic underline strikethrough | link image table | nwcomponents | ' +
               'bullist numlist blockquote | alignleft aligncenter alignright | removeformat | searchreplace visualblocks code | nwimport',
             setup: editor => registerArticleTools(editor, onChangeRef, onImportRef),
             block_formats: 'Paragraph=p; Heading 2=h2; Heading 3=h3; Heading 4=h4; Preformatted=pre',
-
-            // Keep everything the importer and the Media menu write (decision 24 Nov 2026:
-            // "editing an imported article in TinyMCE must not lose it"). TinyMCE's HTML5
-            // schema already keeps classes, figures and images; these add the media
-            // attributes it would otherwise drop. lib/sanitize.ts stays the final say on save.
-            extended_valid_elements:
-              'video[class|src|poster|controls|preload|playsinline|muted|loop|width|height],' +
-              'iframe[class|src|title|loading|allow|allowfullscreen|referrerpolicy|width|height]',
-            // TinyMCE 7+ sandboxes iframes it does not know; our three providers must play
-            sandbox_iframes: true,
-            sandbox_iframes_exclusions: ['youtube-nocookie.com', 'youtube.com', 'youtu.be', 'player.vimeo.com', 'vimeo.com', 'scribehow.com'],
-            convert_unsafe_embeds: true,
             contextmenu: 'link image table',
             browser_spellcheck: true,
 

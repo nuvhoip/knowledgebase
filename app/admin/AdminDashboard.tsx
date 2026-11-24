@@ -8,8 +8,6 @@ import ImageUploadField from '@/components/ImageUploadField'
 import SyncModal, { TIERS, type SyncTarget } from '@/components/admin/SyncModal'
 import SortableTh, { useSort } from '@/components/admin/SortableTh'
 import AdminArticleSearch from '@/components/admin/AdminArticleSearch'
-import ImportTokensTab from '@/components/admin/ImportTokensTab'
-import type { ImportedMeta } from '@/components/editor/TinyEditor'
 import { heroPreviewUrl } from '@/lib/heroPreviewUrl'
 import { sortRows } from '@/lib/adminSort'
 import { splitTagText } from '@/lib/tags'
@@ -249,7 +247,7 @@ function CategoryForm({ title, desc, icon, visibility, setTitle, setDesc, setIco
 function ArticleForm({ categories, subcategories, title, desc, category, subcategory, content, readTime, featured, visibility,
   setTitle, setDesc, setCategory, setSubcategory, setContent, setReadTime, setFeatured, setVisibility,
   onSave, onCancel, saving, saveLabel, showCategory, hero = '', setHero, showHero = false, library,
-  tags = '', setTags, showTags = false, onImported }: {
+  tags = '', setTags, showTags = false }: {
   categories: AdminCategory[]
   subcategories: AdminSubcategory[]
   title: string; desc: string; category: string; subcategory: string; content: string; readTime: string; featured: boolean
@@ -266,8 +264,6 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
   library?: { previewUrl: (src: string) => string }
   /** Tags (KB_TAGS_ENABLED): comma-separated names. Shown once the article's tags have loaded. */
   tags?: string; setTags?: (v: string) => void; showTags?: boolean
-  /** After Import: the import record (sent with the save) and the page's tag suggestions. */
-  onImported?: (m: ImportedMeta) => void
 }) {
   const subsForCategory = subcategories.filter(s => s.category_slug === category)
   return (
@@ -342,16 +338,13 @@ function ArticleForm({ categories, subcategories, title, desc, category, subcate
           onImport={m => {
             if (!title.trim() && m.title) setTitle(m.title)
             if (!desc.trim() && m.description) setDesc(m.description)
-            if (showTags && setTags && !tags.trim() && m.tags.length) setTags(m.tags.join(', '))
-            onImported?.(m)
           }}
         />
         <span className="na-help">
           Drag, paste or insert images straight into the text and they upload automatically.
           <strong> Components</strong> adds callouts, cards, steps, tables, badges and icons;
-          <strong> Media</strong> adds an MP4 or a YouTube, Vimeo or Scribe embed;
-          <strong> Import</strong> turns a standalone HTML page (or a .zip of a page and its files) into the article for you to review,
-          with its drawings, images and videos. The <strong>&lt;&gt;</strong> button opens the raw HTML.
+          <strong> Import</strong> turns a standalone HTML page into the article for you to review.
+          The <strong>&lt;&gt;</strong> button opens the raw HTML.
         </span>
       </div>
       <div className="na-row-inline">
@@ -1169,8 +1162,6 @@ function ArticlesTab({
   // Tags: comma-separated names. Sent on save only once loaded, so a failed load never clears them.
   const [fTags, setFTags] = useState('')
   const [fTagsLoaded, setFTagsLoaded] = useState(false)
-  // Set by the editor's Import; sent with the save so the import is linked to the article
-  const [fImportId, setFImportId] = useState<string | null>(null)
   // Which row's body the in-flight startEdit fetch belongs to (guards against a late
   // response landing in a different row's form).
   const editKeyRef = useRef<string | null>(null)
@@ -1329,7 +1320,6 @@ function ArticlesTab({
     setFContentLoaded(false)
     setFTags('')
     setFTagsLoaded(false)
-    setFImportId(null)
     setFReadTime(String(art.read_time))
     setFFeatured(art.featured)
     setShowAdd(false)
@@ -1372,7 +1362,6 @@ function ArticlesTab({
     setFContentLoaded(false)
     setFTags('')
     setFTagsLoaded(true)
-    setFImportId(null)
     editKeyRef.current = null
   }
 
@@ -1398,7 +1387,6 @@ function ArticlesTab({
       // something / set a hero) so a failed load can never blank an article.
       if (fContentLoaded || fContent.trim() || fHero.trim()) body.content = injectHero(fContent, fHero, fHeroAlt)
       if (tagsEnabled && fTagsLoaded) body.tags = splitTagText(fTags)
-      if (fImportId) body.importId = fImportId
       const res = await fetch(`/api/articles/${art.category_slug}/${art.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1428,7 +1416,6 @@ function ArticlesTab({
           title: fTitle, description: fDesc, categorySlug: fCategory, subcategorySlug: fSubcategory,
           content: injectHero(fContent, fHero, fHeroAlt), readTime: Number(fReadTime), featured: fFeatured, visibility: fVisibility || null,
           ...(tagsEnabled ? { tags: splitTagText(fTags) } : {}),
-          ...(fImportId ? { importId: fImportId } : {}),
         }),
       })
       const data = await res.json()
@@ -1552,7 +1539,6 @@ function ArticlesTab({
             hero={fHero} setHero={setFHero} showHero
             library={heroLibrary(null)}
             tags={fTags} setTags={setFTags} showTags={tagsEnabled && fTagsLoaded}
-            onImported={m => setFImportId(m.importId)}
           />
         </div>
       )}
@@ -1628,11 +1614,6 @@ function ArticlesTab({
                           <Icon name="arrows-rotate" size={14} />
                           Sync
                         </button>
-                        {/* The full page: staff preview for pending articles, and the editor with the Assets panel */}
-                        <a href={`/articles/${art.category_slug}/${art.slug}`} target="_blank" rel="noopener noreferrer" className="nv-btn nv-btn--ghost nv-btn--sm">
-                          <Icon name="eye" size={14} />
-                          Preview
-                        </a>
                         <button type="button" onClick={() => startEdit(art)} className="nv-btn nv-btn--ghost nv-btn--sm">
                           <Icon name="pen-to-square" size={14} />
                           Edit
@@ -1661,7 +1642,6 @@ function ArticlesTab({
                           hero={fHero} setHero={setFHero} showHero
                           library={heroLibrary(art)}
                           tags={fTags} setTags={setFTags} showTags={tagsEnabled && fTagsLoaded}
-                          onImported={m => setFImportId(m.importId)}
                         />
                       </td>
                     </tr>
@@ -1701,16 +1681,14 @@ function ArticlesTab({
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
-type TabKey = 'categories' | 'articles' | 'users' | 'tokens'
-const TABS: { key: TabKey; label: string }[] = [
+const TABS: { key: 'categories' | 'articles' | 'users'; label: string }[] = [
   { key: 'categories', label: 'Categories' },
   { key: 'articles',   label: 'Articles' },
   { key: 'users',      label: 'Users' },
-  { key: 'tokens',     label: 'Claude tokens' },
 ]
 
 export default function AdminDashboard({ imageLibrary = false, tagsEnabled = false }: { imageLibrary?: boolean; tagsEnabled?: boolean }) {
-  const [activeTab, setActiveTab] = useState<TabKey>('categories')
+  const [activeTab, setActiveTab] = useState<'categories' | 'articles' | 'users'>('categories')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   // Dashboard article search (AdminArticleSearch): a picked article to open, or "show all" results
@@ -1776,7 +1754,6 @@ export default function AdminDashboard({ imageLibrary = false, tagsEnabled = fal
         />
       )}
       {activeTab === 'users' && <UsersTab onToast={showToast} />}
-      {activeTab === 'tokens' && <ImportTokensTab onToast={showToast} />}
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
