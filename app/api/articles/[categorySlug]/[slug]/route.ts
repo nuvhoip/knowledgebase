@@ -5,6 +5,7 @@ import { sanitizeArticleHtml } from '@/lib/sanitize'
 import { isVersioningEnabled } from '@/lib/flags'
 import { ensureBaseline, lockArticle, snapshotArticle, withDb } from '@/lib/versions'
 import { setArticleTags } from '@/lib/tags'
+import { attachImport } from '@/lib/importDb'
 
 interface RouteParams {
   params: { categorySlug: string; slug: string }
@@ -31,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await req.json()
-    const { title, description, content, readTime, subcategorySlug, visibility, changeSummary, tags } = body
+    const { title, description, content, readTime, subcategorySlug, visibility, changeSummary, tags, importId } = body
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 })
@@ -60,7 +61,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const versioning = isVersioningEnabled()
     // Tags are written in the same transaction as the article
     const updatingTags = tags !== undefined
-    return await withDb(pool, versioning || updatingTags, async db => {
+    // importId: the author imported a page in the editor (POST /api/admin/import); linking it
+    // keeps the article's Assets panel and "Restore imported version" (lib/importDb.ts)
+    return await withDb(pool, versioning || updatingTags || !!importId, async db => {
       const articleId = versioning ? await lockArticle(db, params.categorySlug, params.slug) : null
 
       const before = await db.query(
@@ -120,12 +123,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
 
       if (updatingTags) await setArticleTags(db, result.rows[0].id, tags)
+      const importedFrom = importId ? await attachImport(db, importId, result.rows[0].id) : null
 
       if (articleId) {
         await snapshotArticle(db, articleId, {
           source: 'editor',
           changedBy: session.email,
-          changeSummary: typeof changeSummary === 'string' ? changeSummary.slice(0, 500) : null,
+          changeSummary: (typeof changeSummary === 'string' ? changeSummary.trim().slice(0, 500) : '')
+            || (importedFrom ? `Imported from ${importedFrom}`.slice(0, 500) : null),
         })
       }
 
