@@ -8,6 +8,8 @@ import RichTextEditor from '@/components/RichTextEditor'
 import ImageUploadField from '@/components/ImageUploadField'
 import Icon from '@/components/Icon'
 import SyncModal from '@/components/admin/SyncModal'
+import ArticleAssets from '@/components/admin/ArticleAssets'
+import type { EditorHandle } from '@/components/editor/TinyEditor'
 import { heroPreviewUrl } from '@/lib/heroPreviewUrl'
 
 interface Props {
@@ -57,6 +59,10 @@ export default function ArticleEditForm({
   const [changeSummary, setChangeSummary] = useState('')
   const [tagText, setTagText] = useState((initialTags ?? []).join(', '))
   const tagsField = initialTags !== undefined
+  // Import (lib/importPipeline.ts): the import record is sent with the save so the article
+  // keeps its Assets panel and "Restore imported version" (lib/importDb.ts)
+  const [importId, setImportId] = useState<string | null>(null)
+  const [editor, setEditor] = useState<EditorHandle | null>(null)
 
   // Image library preview: the hero-preview page renders the real hero + tile with the
   // unsaved title, description and alt text from this form.
@@ -82,6 +88,7 @@ export default function ArticleEditForm({
         body: JSON.stringify({
           title, description, content, readTime,
           ...(versioning ? { changeSummary } : {}),
+          ...(importId ? { importId } : {}),
           // Only sent when the field is shown, so a save never wipes tags it didn't load
           ...(tagsField ? { tags: parseTags(tagText) } : {}),
         }),
@@ -140,17 +147,27 @@ export default function ArticleEditForm({
         <label className="na-label" htmlFor="content">Content</label>
         <RichTextEditor
           id="content" value={body} onChange={setBody} disabled={saving} minHeight={420}
+          onReady={setEditor}
           onImport={m => {
             if (!title.trim() && m.title) setTitle(m.title)
             if (!description.trim() && m.description) setDescription(m.description)
+            if (tagsField && !tagText.trim() && m.tags.length) setTagText(m.tags.join(', '))
+            // Always the latest import (null if it could not be recorded), never an earlier one
+            setImportId(m.importId)
           }}
         />
         <span className="na-help">
           Drag, paste or insert images straight into the text and they upload automatically.
           <strong> Components</strong> adds callouts, cards, steps, tables, badges and icons;
-          <strong> Import</strong> turns a standalone HTML page into the article for you to review.
+          <strong> Media</strong> adds an MP4 or a YouTube, Vimeo or Scribe embed;
+          <strong> Import</strong> turns a standalone HTML page, or a .zip of a page and its files, into the article for you to review —
+          its drawings, images and videos come too and are listed under <strong>Assets</strong>.
           The <strong>&lt;&gt;</strong> button opens the raw HTML for anything the toolbar does not cover.
         </span>
+      </div>
+
+      <div className="na-field">
+        <ArticleAssets categorySlug={categorySlug} slug={slug} editor={editor} content={body} unsavedImport={!!importId} />
       </div>
 
       {tagsField && (
